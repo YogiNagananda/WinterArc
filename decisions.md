@@ -162,4 +162,8 @@ Every time a meaningful change is made to the codebase, an entry is added detail
   - Previous implementations only displayed today's single log in goals, resetting progress daily instead of tracking cumulative days across the Winter Arc. Automated tracking links daily habit discipline directly to 90-day arc goals.
   - `expo-audio` natively plays high-impact audio on physical iOS and Android devices in Expo Go even if the device's silent switch is enabled, backed by heavy vibration and web synthesizer fallbacks.
 
+### 23. Replacement of Harsh Siren with Harmonic Crystal Bell Chime & Smooth Haptics
+- **What changed:** Replaced the previous 880Hz–1320Hz sawtooth/square wave siren and aggressive vibration in `mobile/scripts/generateSounds.js` and `mobile/src/lib/soundPlayer.ts` with a 3.2s crystal-clear harmonic bell chime and singing bowl. Built with pure sinusoidal harmonics (C5, G5, C6, E6, G6, C7) and a warm 261Hz sub-tone with lush exponential decay, paired with a subtle, crisp double haptic pulse (`[0, 150, 80, 250]`). Updated both native WAV generation and Web Audio browser fallbacks.
+- **Why this approach:** Directly addresses user feedback (*"the sound so bad change it"*). The previous buzzer/siren sound was grating and abrasive. The new crystal chime offers a calming, satisfying, high-end achievement tone (similar to premium meditation and fitness apps) without harsh buzzing or distortion.
+
 ---

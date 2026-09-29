@@ -41,26 +41,49 @@ function createWavBuffer(sampleRate, durationSeconds, sampleGenerator) {
 const sampleRate = 44100;
 const assetsDir = path.join(__dirname, '..', 'assets');
 
-// 1. HARD BATTLE ALARM (Focus Timer Complete): 3 piercing, aggressive siren pulses with bass punch
-const battleAlarm = createWavBuffer(sampleRate, 2.5, (t) => {
-  // Three pulses at 0.0s, 0.8s, 1.6s
-  const pulseDuration = 0.65;
-  const cycleTime = t % 0.8;
-  if (cycleTime > pulseDuration) return 0;
+// 1. HARMONIC CRYSTAL CHIME (Focus Timer Complete): Rich, crystal-clear bell chime & singing bowl with soothing decay
+const battleAlarm = createWavBuffer(sampleRate, 3.2, (t) => {
+  let sig = 0;
 
-  const pulseT = cycleTime / pulseDuration;
-  // Siren frequency ramps from 880Hz to 1320Hz
-  const freq = 880 + 440 * pulseT;
-  const leadSaw = (2 * ((t * freq) % 1)) - 1; // Sawtooth wave
-  const leadSquare = Math.sin(2 * Math.PI * freq * t) > 0 ? 0.7 : -0.7;
+  // First Bell Strike (C5 chord) at t = 0s
+  if (t >= 0) {
+    const dt = t;
+    const env = Math.exp(-2.2 * dt);
+    const f1 = 523.25; // C5
+    const o1 = Math.sin(2 * Math.PI * f1 * dt) * 0.45;
+    const o2 = Math.sin(2 * Math.PI * f1 * 1.5 * dt) * 0.25; // G5 (5th)
+    const o3 = Math.sin(2 * Math.PI * f1 * 2.0 * dt) * 0.20; // C6 (octave)
+    const o4 = Math.sin(2 * Math.PI * f1 * 2.756 * dt) * 0.10; // metallic bell sheen
+    sig += (o1 + o2 + o3 + o4) * env;
+  }
 
-  // Heavy sub-bass punch at 110Hz dropping to 55Hz
-  const bassFreq = 110 * Math.exp(-3 * pulseT);
-  const bass = Math.sin(2 * Math.PI * bassFreq * t);
+  // Second Ascending Bloom (G5 + E6 chord) at t = 0.3s
+  if (t >= 0.3) {
+    const dt = t - 0.3;
+    const env = Math.exp(-1.8 * dt);
+    const f2 = 783.99; // G5
+    const o1 = Math.sin(2 * Math.PI * f2 * dt) * 0.40;
+    const o2 = Math.sin(2 * Math.PI * 1046.50 * dt) * 0.35; // C6
+    const o3 = Math.sin(2 * Math.PI * 1318.51 * dt) * 0.22; // E6
+    const o4 = Math.sin(2 * Math.PI * 1567.98 * dt) * 0.12; // G6
+    sig += (o1 + o2 + o3 + o4) * env;
+  }
 
-  // Amplitude envelope (sharp attack, sustained body, quick decay)
-  const env = Math.sin(Math.PI * Math.min(1, pulseT * 1.2));
-  return (leadSaw * 0.4 + leadSquare * 0.3 + bass * 0.45) * env;
+  // Third High Crystal Sparkle at t = 0.6s
+  if (t >= 0.6) {
+    const dt = t - 0.6;
+    const env = Math.exp(-1.6 * dt);
+    const o1 = Math.sin(2 * Math.PI * 1046.50 * dt) * 0.30; // C6
+    const o2 = Math.sin(2 * Math.PI * 1567.98 * dt) * 0.20; // G6
+    const o3 = Math.sin(2 * Math.PI * 2093.00 * dt) * 0.15; // C7
+    sig += (o1 + o2 + o3) * env;
+  }
+
+  // Warm resonant singing bowl sub-tone (261.63Hz C4)
+  const bowlEnv = Math.exp(-1.1 * t);
+  const bowl = Math.sin(2 * Math.PI * 261.63 * t) * 0.25 * bowlEnv;
+
+  return (sig * 0.65 + bowl) * 0.85;
 });
 
 // 2. CELEBRATION FANFARE (Full Day / Goal): Ascending major arpeggio

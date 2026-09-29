@@ -73,18 +73,19 @@ export function unlockAudio() {
 }
 
 /**
- * Play a HARD, commanding, warrior-tier battle alert when focus timer finishes.
- * Plays high-energy battle alarm WAV audio + multi-pulse heavy vibration.
+ * Play a rich, satisfying, harmonic crystal bell chime when focus timer finishes.
+ * Plays high-quality harmonic chime WAV audio + crisp double haptic pulse.
  */
 export async function playHardCompletionSound() {
   try {
-    // 1. Heavy physical vibration alert
-    Vibration.vibrate([0, 600, 150, 600, 150, 900]);
+    // 1. Crisp, premium double haptic pulse
+    Vibration.vibrate([0, 150, 80, 250]);
 
     // 2. Audible sound playback via expo-audio player
     const player = getAlarmPlayer();
     if (player) {
       try {
+        player.volume = 1.0;
         await player.seekTo(0);
         player.play();
       } catch (e) {
@@ -92,47 +93,64 @@ export async function playHardCompletionSound() {
       }
     }
 
-    // 3. Web Audio Synthesizer backup for browsers
+    // 3. Web Audio Synthesizer backup for browsers (pure sinusoidal harmonic bell chime)
     const ctx = getWebAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-      [0, 0.35, 0.7].forEach(offset => {
-        const start = now + offset;
-        const duration = 0.28;
 
+      // Chord 1: Warm C5 + G5 strike
+      [523.25, 783.99, 1046.5].forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, start);
-        osc.frequency.exponentialRampToValueAtTime(1320, start + duration * 0.7);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
 
-        gain.gain.setValueAtTime(0.5, start);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        const gainVal = 0.35 / (idx + 1);
+        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 2.0);
+      });
+
+      // Chord 2: Ascending bloom chord at +0.28s (G5, C6, E6, G6)
+      [783.99, 1046.5, 1318.51, 1567.98].forEach((freq, idx) => {
+        const start = now + 0.28;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+
+        const gainVal = 0.3 / (idx + 1);
+        gain.gain.setValueAtTime(gainVal, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 2.4);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(start);
-        osc.stop(start + duration);
-
-        const bassOsc = ctx.createOscillator();
-        const bassGain = ctx.createGain();
-        bassOsc.type = 'square';
-        bassOsc.frequency.setValueAtTime(110, start);
-        bassOsc.frequency.exponentialRampToValueAtTime(55, start + duration);
-
-        bassGain.gain.setValueAtTime(0.6, start);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-
-        bassOsc.connect(bassGain);
-        bassGain.connect(ctx.destination);
-        bassOsc.start(start);
-        bassOsc.stop(start + duration);
+        osc.stop(start + 2.4);
       });
+
+      // Singing bowl sub-tone (261.63Hz)
+      const bowl = ctx.createOscillator();
+      const bowlGain = ctx.createGain();
+      bowl.type = 'sine';
+      bowl.frequency.setValueAtTime(261.63, now);
+      bowlGain.gain.setValueAtTime(0.25, now);
+      bowlGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+      bowl.connect(bowlGain);
+      bowlGain.connect(ctx.destination);
+      bowl.start(now);
+      bowl.stop(now + 2.5);
     }
   } catch (err) {
     console.warn('Sound playback notice:', err);
   }
 }
+
+export const playFocusCompletionSound = playHardCompletionSound;
 
 /**
  * Play celebratory sound for Day 100% completion or reading achievement

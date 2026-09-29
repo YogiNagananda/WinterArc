@@ -197,8 +197,8 @@ export const FocusScreen: React.FC = () => {
         }}
         activeOpacity={0.7}
       >
-        <Text style={styles.soundTestIcon}>🔔</Text>
-        <Text style={styles.soundTestText}>Test Battle Alarm Sound</Text>
+        <Text style={styles.soundTestIcon}>✨</Text>
+        <Text style={styles.soundTestText}>Test Focus Completion Chime</Text>
       </TouchableOpacity>
 
       {/* Task / Subject Link */}
