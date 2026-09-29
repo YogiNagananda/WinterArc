@@ -414,7 +414,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   // ─── Persistent Focus Timer ─────────────────────────────────────────────
   startFocusTimer: async (targetMinutes, taskId) => {
     const timer = get().focusTimer;
-    const minutes = targetMinutes ?? timer.targetMinutes;
+    const minutes = Math.max(1, targetMinutes ?? timer.targetMinutes ?? 25);
     const updated: FocusTimerState = {
       ...timer,
       isRunning: true,
@@ -435,7 +435,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const updated: FocusTimerState = {
       ...timer,
       isPaused: true,
-      accumulatedMs: timer.accumulatedMs + elapsedSinceStart,
+      accumulatedMs: (timer.accumulatedMs || 0) + elapsedSinceStart,
       startedAt: null,
     };
     await localDb.saveFocusTimer(updated);
@@ -470,9 +470,10 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   setFocusTargetMinutes: async (minutes: number) => {
     const timer = get().focusTimer;
     if (timer.isRunning) return;
+    const safeMin = Math.max(1, Math.min(240, minutes));
     const updated: FocusTimerState = {
       ...timer,
-      targetMinutes: minutes,
+      targetMinutes: safeMin,
       accumulatedMs: 0,
       startedAt: null,
     };
@@ -488,12 +489,15 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const timer = get().focusTimer;
     if (!timer.isRunning) return null;
 
-    let totalMs = timer.accumulatedMs;
+    let totalMs = timer.accumulatedMs || 0;
     if (!timer.isPaused && timer.startedAt) {
-      totalMs += Date.now() - timer.startedAt;
+      totalMs += Math.max(0, Date.now() - timer.startedAt);
     }
 
-    const actualMinutes = Math.max(1, Math.round(totalMs / 60000));
+    const maxTargetMs = (timer.targetMinutes || 25) * 60 * 1000;
+    const boundedMs = Math.min(totalMs, maxTargetMs);
+    const actualMinutes = Math.max(1, Math.min(timer.targetMinutes || 25, Math.round(boundedMs / 60000)));
+
     const newSession: FocusSession = {
       id: `foc-${Date.now()}`,
       taskId: timer.taskId,
@@ -507,11 +511,11 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       isPaused: false,
       startedAt: null,
       accumulatedMs: 0,
-      completedSessions: [actualMinutes, ...timer.completedSessions],
+      completedSessions: [actualMinutes, ...(timer.completedSessions || [])],
     };
 
     // Award XP
-    const xpEarned = Math.round(actualMinutes * 0.8);
+    const xpEarned = Math.max(5, Math.round(actualMinutes * 0.8));
     const profile = get().profile;
     const updatedProfile: Profile = {
       ...profile,

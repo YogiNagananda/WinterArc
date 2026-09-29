@@ -30,41 +30,47 @@ export const FocusScreen: React.FC = () => {
   const setFocusTargetMinutes = useWinterStore(s => s.setFocusTargetMinutes);
   const setFocusSelectedTaskId = useWinterStore(s => s.setFocusSelectedTaskId);
 
-  // Tick trigger to re-render display every second while timer is running
-  const [, setTick] = useState(0);
-
   const { isRunning, isPaused, targetMinutes, startedAt, accumulatedMs, taskId, completedSessions } = focusTimer;
 
+  // Real-time ticking state updated every 500ms for smooth, glitch-free countdown
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    if (!isRunning || isPaused) return;
+
+    // Immediately capture current timestamp
+    setCurrentTime(Date.now());
+
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isRunning, isPaused, startedAt]);
+
+  const safeTargetMinutes = Math.max(1, targetMinutes || 25);
+  const totalTargetSeconds = safeTargetMinutes * 60;
+
   // Calculate live elapsed seconds based on persistent timestamps
-  const elapsedSeconds = useMemo(() => {
-    if (!isRunning) return 0;
-    let totalMs = accumulatedMs;
+  let elapsedSeconds = 0;
+  if (isRunning) {
+    let totalMs = accumulatedMs || 0;
     if (!isPaused && startedAt) {
-      totalMs += Math.max(0, Date.now() - startedAt);
+      totalMs += Math.max(0, currentTime - startedAt);
     }
-    return Math.floor(totalMs / 1000);
-  }, [isRunning, isPaused, startedAt, accumulatedMs, focusTimer]);
+    elapsedSeconds = Math.floor(totalMs / 1000);
+  }
 
-  const totalTargetSeconds = targetMinutes * 60;
   const secondsLeft = Math.max(0, totalTargetSeconds - elapsedSeconds);
+  const progressRatio = Math.min(1, Math.max(0, elapsedSeconds / totalTargetSeconds));
+  const progressPercent = Math.round(progressRatio * 100);
 
-  // Interval for smooth countdown display while screen is mounted
+  // Automatically trigger completion when countdown reaches 0
   useEffect(() => {
-    if (isRunning && !isPaused) {
-      const interval = setInterval(() => {
-        setTick(t => t + 1);
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isRunning, isPaused]);
-
-  // Handle completion when time runs out
-  useEffect(() => {
-    if (isRunning && secondsLeft <= 0) {
+    if (isRunning && secondsLeft <= 0 && elapsedSeconds > 0) {
       stopFocusTimer();
     }
-  }, [isRunning, secondsLeft, stopFocusTimer]);
+  }, [isRunning, secondsLeft, elapsedSeconds, stopFocusTimer]);
 
   const selectPreset = (min: number) => {
     if (isRunning) return;
@@ -73,7 +79,7 @@ export const FocusScreen: React.FC = () => {
 
   const handleStartOrToggle = () => {
     if (!isRunning) {
-      startFocusTimer(targetMinutes, taskId);
+      startFocusTimer(safeTargetMinutes, taskId);
     } else if (isPaused) {
       resumeFocusTimer();
     } else {
@@ -97,31 +103,58 @@ export const FocusScreen: React.FC = () => {
       {/* Preset Selector */}
       <View style={styles.presetsRow}>
         {PRESETS.map(p => {
-          const isActive = targetMinutes === p.minutes;
+          const isActive = safeTargetMinutes === p.minutes;
           return (
             <TouchableOpacity
               key={p.label}
               disabled={isRunning}
-              style={[styles.presetPill, isActive && styles.presetPillActive]}
+              style={[styles.presetPill, isActive && styles.presetPillActive, isRunning && { opacity: 0.6 }]}
               onPress={() => selectPreset(p.minutes)}
             >
               <Text style={[styles.presetText, isActive && styles.presetTextActive]}>
-                {p.label}
+                {p.label} ({p.minutes}m)
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
+      {/* Manual Fine-Tuning Stepper (active when timer is not running) */}
+      {!isRunning && (
+        <View style={styles.stepperRow}>
+          <TouchableOpacity
+            style={styles.adjustBtn}
+            onPress={() => setFocusTargetMinutes(Math.max(5, safeTargetMinutes - 5))}
+          >
+            <Text style={styles.adjustBtnText}>- 5m</Text>
+          </TouchableOpacity>
+          <Text style={styles.stepperTime}>{safeTargetMinutes} min duration</Text>
+          <TouchableOpacity
+            style={styles.adjustBtn}
+            onPress={() => setFocusTargetMinutes(Math.min(180, safeTargetMinutes + 5))}
+          >
+            <Text style={styles.adjustBtnText}>+ 5m</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Glowing Timer Display */}
       <View style={styles.timerCircleOuter}>
         <View style={styles.timerCircleInner}>
           <Text style={styles.timerDisplay}>{formatTime(secondsLeft)}</Text>
-          <Text style={styles.timerSub}>
-            {!isRunning ? 'READY TO GRIND' : isPaused ? 'PAUSED' : 'FOCUSING'}
+          <Text style={[styles.timerSub, isRunning && !isPaused && { color: colors.iceBlue }]}>
+            {!isRunning ? 'READY TO GRIND' : isPaused ? 'PAUSED' : '⚡ DEEP FOCUS'}
           </Text>
+
+          {/* Progress bar inside timer circle */}
+          {isRunning && (
+            <View style={styles.circleProgressTrack}>
+              <View style={[styles.circleProgressFill, { width: `${progressPercent}%` }]} />
+            </View>
+          )}
+
           <Text style={styles.xpHint}>
-            +{Math.round(targetMinutes * 0.8)} XP on completion
+            +{Math.max(5, Math.round(safeTargetMinutes * 0.8))} XP on completion
           </Text>
         </View>
       </View>
@@ -176,7 +209,7 @@ export const FocusScreen: React.FC = () => {
       <Card style={styles.sessionsCard}>
         <Text style={styles.sessionsTitle}>Focus Completed Today</Text>
         {completedSessions.length === 0 ? (
-          <Text style={styles.sessionsEmpty}>No sessions logged yet today. Complete your first 25m sprint!</Text>
+          <Text style={styles.sessionsEmpty}>No sessions logged yet today. Complete your first sprint!</Text>
         ) : (
           <View style={styles.sessionChips}>
             {completedSessions.map((min, idx) => (
@@ -219,12 +252,12 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       flexWrap: 'wrap',
       gap: 8,
       justifyContent: 'center',
-      marginBottom: spacing.xl,
+      marginBottom: spacing.sm,
     },
     presetPill: {
       backgroundColor: colors.cardBg,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
       borderRadius: borderRadius.full,
       borderWidth: 1,
       borderColor: colors.border,
@@ -240,6 +273,30 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
     },
     presetTextActive: {
       color: colors.iceBlue,
+    },
+    stepperRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    adjustBtn: {
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: borderRadius.md,
+    },
+    adjustBtnText: {
+      color: colors.iceBlue,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    stepperTime: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     timerCircleOuter: {
       width: 250,
@@ -259,6 +316,8 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
     },
     timerCircleInner: {
       alignItems: 'center',
+      width: '100%',
+      paddingHorizontal: spacing.lg,
     },
     timerDisplay: {
       fontSize: 52,
@@ -274,10 +333,23 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       letterSpacing: 1.5,
       marginTop: 4,
     },
+    circleProgressTrack: {
+      width: 140,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginTop: 10,
+    },
+    circleProgressFill: {
+      height: '100%',
+      backgroundColor: colors.iceBlue,
+      borderRadius: 2,
+    },
     xpHint: {
       fontSize: 11,
       color: colors.textMuted,
-      marginTop: 6,
+      marginTop: 8,
     },
     controlsRow: {
       flexDirection: 'row',
