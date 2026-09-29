@@ -4,8 +4,8 @@ import {
   StyleSheet,
   Text,
   StatusBar,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWinterStore } from './src/store/useWinterStore';
 import { Header } from './src/components/Header';
 import { BottomTabs } from './src/components/BottomTabs';

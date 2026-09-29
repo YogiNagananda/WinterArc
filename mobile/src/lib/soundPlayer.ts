@@ -1,5 +1,4 @@
 import { Vibration, Platform } from 'react-native';
-import { Audio } from 'expo-av';
 
 // Audio Context reference for Web
 let webAudioCtx: any = null;
@@ -15,6 +14,16 @@ function getWebAudioContext() {
     webAudioCtx.resume().catch(() => {});
   }
   return webAudioCtx;
+}
+
+function getExpoAudio() {
+  try {
+    // Dynamically require to avoid crash if ExponentAV native module is missing in Expo Go
+    const mod = require('expo-av');
+    return mod?.Audio || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -70,11 +79,14 @@ export async function playHardCompletionSound() {
 
     // 3. Expo-AV playback on native
     if (Platform.OS !== 'web') {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
+      const Audio = getExpoAudio();
+      if (Audio) {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     console.warn('Sound playback notice:', err);
@@ -107,7 +119,7 @@ export async function playCelebrationSound() {
         osc.stop(start + 0.35);
       });
     }
-  } catch (err) {}
+  } catch {}
 }
 
 /**
@@ -132,5 +144,5 @@ export async function playInitiationGong() {
       gong.start(now);
       gong.stop(now + 1.8);
     }
-  } catch (err) {}
+  } catch {}
 }
