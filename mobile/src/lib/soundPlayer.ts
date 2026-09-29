@@ -1,4 +1,4 @@
-import { Vibration, Platform } from 'react-native';
+import { Vibration, Platform, NativeModules } from 'react-native';
 
 // Audio Context reference for Web
 let webAudioCtx: any = null;
@@ -17,8 +17,10 @@ function getWebAudioContext() {
 }
 
 function getExpoAudio() {
+  // Only attempt if native module ExponentAV is actually linked in the runtime
+  if (Platform.OS === 'web') return null;
+  if (!NativeModules || !NativeModules.ExponentAV) return null;
   try {
-    // Dynamically require to avoid crash if ExponentAV native module is missing in Expo Go
     const mod = require('expo-av');
     return mod?.Audio || null;
   } catch {
