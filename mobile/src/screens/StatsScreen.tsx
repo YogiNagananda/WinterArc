@@ -8,6 +8,7 @@ import {
 import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
+import { getLevel } from '../lib/levels';
 
 // Heatmap — last 90 days
 function generateHeatmapDates(count: number): string[] {
@@ -55,6 +56,7 @@ export const StatsScreen: React.FC = () => {
     tasks_50: completions.length >= 50,
   };
 
+  const userLevel = getLevel(profile.totalXp);
   const unlockedCount = Object.values(badgeStates).filter(Boolean).length;
   const totalCompletions = completions.length;
   const totalFocusSessions = focusTimer.completedSessions.length;
@@ -69,6 +71,11 @@ export const StatsScreen: React.FC = () => {
       {/* Stats Summary Grid */}
       <View style={styles.statsGrid}>
         <Card style={styles.statCard}>
+          <Text style={styles.statEmoji}>{userLevel.icon}</Text>
+          <Text style={styles.statVal}>{userLevel.name}</Text>
+          <Text style={styles.statLabel}>User Level</Text>
+        </Card>
+        <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>🔥</Text>
           <Text style={styles.statVal}>{profile.streak}d</Text>
           <Text style={styles.statLabel}>Current Streak</Text>
@@ -76,7 +83,7 @@ export const StatsScreen: React.FC = () => {
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>⚡</Text>
           <Text style={styles.statVal}>{profile.totalXp}</Text>
-          <Text style={styles.statLabel}>Total XP</Text>
+          <Text style={styles.statLabel}>XP Points</Text>
         </Card>
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>✅</Text>

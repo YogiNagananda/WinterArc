@@ -147,4 +147,9 @@ Every time a meaningful change is made to the codebase, an entry is added detail
 - **Why this approach:** Guarantees instantaneous, zero-lag, second-by-second countdown on screen while maintaining persistent durability when navigating away or switching tabs.
 - **Why this over alternatives:** Storing second-by-second updates into Zustand or persistent disk storage incurs unnecessary I/O and battery drain. Computing live deltas against a single persistent start timestamp via a lightweight 500ms local interval delivers smooth 60fps countdown precision with zero native overhead.
 
+### 21. XP Deduction on Reward Redemption & Dynamic Level Architecture
+- **What changed:** Built `mobile/src/lib/levels.ts` defining the 5-tier user progression hierarchy: Rookie (0+ XP, 🌱), Grinder (300+ XP, ⚡), Disciplined (800+ XP, 🛡️), Beast (1800+ XP, 🐺), and Legend (3500+ XP, 🏆). Updated `redeemReward` in `useWinterStore.ts` to deduct `reward.cost` from both `totalXp` and `spendableXp`. Integrated the live user Level badge into `Header.tsx`, rendered a Level Mastery progression card with live progress bar and XP-to-promotion metrics on `DashboardScreen.tsx`, and updated `RewardsScreen.tsx` so claiming rewards actively deducts XP points and alerts the user if their Level tier shifted.
+- **Why this approach:** Directly honors the user requirement that redeeming rewards consumes the user's XP points and that user Level is bound to their current XP point balance.
+- **Why this over alternatives:** A decoupled "spendable XP" model shields user levels from dropping, but removing that barrier introduces tangible stakes to taking leisure rewards. Users must actively choose whether to spend XP points on entertainment (games, movies, series) or maintain their higher warrior level status.
+
 ---

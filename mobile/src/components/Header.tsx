@@ -2,12 +2,15 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
+import { getLevel } from '../lib/levels';
 
 export const Header: React.FC = () => {
   const { colors, spacing, borderRadius } = useTheme();
   const profile = useWinterStore(s => s.profile);
   const isSyncing = useWinterStore(s => s.isSyncing);
   const setActiveTab = useWinterStore(s => s.setActiveTab);
+
+  const userLevel = getLevel(profile.totalXp);
 
   // Calculate day of the arc
   const start = new Date(profile.startDate).getTime();
@@ -30,6 +33,12 @@ export const Header: React.FC = () => {
       </View>
 
       <View style={styles.right}>
+        {/* Level Pill */}
+        <View style={styles.levelPill}>
+          <Text style={styles.levelEmoji}>{userLevel.icon}</Text>
+          <Text style={styles.levelVal}>{userLevel.name}</Text>
+        </View>
+
         {/* Streak Pill */}
         <View style={styles.streakPill}>
           <Text style={styles.streakEmoji}>🔥</Text>
@@ -95,6 +104,26 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
     right: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    levelPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: borderRadius.full,
+      marginRight: 6,
+    },
+    levelEmoji: {
+      fontSize: 11,
+      marginRight: 3,
+    },
+    levelVal: {
+      color: colors.iceBlue,
+      fontSize: 11,
+      fontWeight: '800',
     },
     streakPill: {
       flexDirection: 'row',

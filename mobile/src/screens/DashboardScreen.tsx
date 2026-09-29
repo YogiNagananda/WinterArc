@@ -11,6 +11,7 @@ import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { StatChip } from '../components/StatChip';
+import { getLevel, getNextLevel, getLevelProgress, getXpToNextLevel } from '../lib/levels';
 
 export const DashboardScreen: React.FC = () => {
   const { colors, spacing, borderRadius } = useTheme();
@@ -27,6 +28,12 @@ export const DashboardScreen: React.FC = () => {
   const clearFullDayToast = useWinterStore(s => s.clearFullDayToast);
 
   const today = new Date().toISOString().split('T')[0];
+
+  // User Level based on XP Points
+  const currentLevel = getLevel(profile.totalXp);
+  const nextLevel = getNextLevel(profile.totalXp);
+  const levelProgress = getLevelProgress(profile.totalXp);
+  const xpNeeded = getXpToNextLevel(profile.totalXp);
 
   // Arc calculation
   const start = new Date(profile.startDate).getTime();
@@ -129,10 +136,42 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Stats Chips Row */}
         <View style={styles.statChipsRow}>
+          <StatChip label="Level" value={currentLevel.name} icon={currentLevel.icon} color="ice" />
           <StatChip label="Streak" value={`${profile.streak}d`} icon="🔥" color="amber" />
-          <StatChip label="Total XP" value={profile.totalXp} icon="⚡" color="ice" />
-          <StatChip label="Vault XP" value={profile.spendableXp} icon="💎" color="ice" />
+          <StatChip label="XP Points" value={profile.totalXp} icon="⚡" color="ice" />
           <StatChip label="Tasks" value={`${completedCount}/${todayTasks.length}`} icon="✅" color="mint" />
+        </View>
+      </Card>
+
+      {/* User Level Mastery Card */}
+      <Card elevated style={styles.levelCard}>
+        <View style={styles.levelHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.levelCardIcon}>{currentLevel.icon}</Text>
+            <View>
+              <Text style={styles.levelCardName}>LEVEL {currentLevel.name.toUpperCase()}</Text>
+              <Text style={styles.levelCardSub}>{currentLevel.title}</Text>
+            </View>
+          </View>
+          <View style={styles.levelXpBadge}>
+            <Text style={styles.levelXpBadgeText}>⚡ {profile.totalXp} XP</Text>
+          </View>
+        </View>
+
+        {/* Level Progress Bar */}
+        <View style={styles.levelProgressBarTrack}>
+          <View style={[styles.levelProgressBarFill, { width: `${levelProgress}%` }]} />
+        </View>
+
+        <View style={styles.levelFooterRow}>
+          <Text style={styles.levelProgressText}>{levelProgress}% toward promotion</Text>
+          {nextLevel ? (
+            <Text style={styles.nextLevelText}>
+              {xpNeeded} XP to <Text style={{ color: colors.iceBlue, fontWeight: '800' }}>{nextLevel.name} {nextLevel.icon}</Text>
+            </Text>
+          ) : (
+            <Text style={styles.nextLevelText}>MAX LEVEL REACHED 🏆</Text>
+          )}
         </View>
       </Card>
 
@@ -422,6 +461,73 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       flexWrap: 'wrap',
       gap: 6,
       marginTop: spacing.xs,
+    },
+    levelCard: {
+      marginBottom: spacing.lg,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    levelHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    levelCardIcon: {
+      fontSize: 26,
+      marginRight: 10,
+    },
+    levelCardName: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      letterSpacing: 0.5,
+    },
+    levelCardSub: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    levelXpBadge: {
+      backgroundColor: colors.iceBlueSubtle,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.iceBlue,
+    },
+    levelXpBadgeText: {
+      color: colors.iceBlue,
+      fontSize: 11,
+      fontWeight: '900',
+    },
+    levelProgressBarTrack: {
+      height: 6,
+      backgroundColor: colors.border,
+      borderRadius: 3,
+      overflow: 'hidden',
+      marginBottom: 8,
+    },
+    levelProgressBarFill: {
+      height: '100%',
+      backgroundColor: colors.iceBlue,
+      borderRadius: 3,
+    },
+    levelFooterRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    levelProgressText: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    nextLevelText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
     },
     quoteCard: {
       backgroundColor: colors.cardElevated,

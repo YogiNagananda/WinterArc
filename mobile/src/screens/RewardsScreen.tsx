@@ -13,6 +13,7 @@ import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { getLevel, getNextLevel, getLevelProgress, getXpToNextLevel } from '../lib/levels';
 
 export const RewardsScreen: React.FC = () => {
   const { colors, spacing, borderRadius } = useTheme();
@@ -27,19 +28,32 @@ export const RewardsScreen: React.FC = () => {
   const [rewardCost, setRewardCost] = useState('150');
   const [successToast, setSuccessToast] = useState('');
 
+  // Level dynamically tied to XP Points
+  const userLevel = getLevel(profile.totalXp);
+  const nextLevel = getNextLevel(profile.totalXp);
+  const levelProgress = getLevelProgress(profile.totalXp);
+  const xpNeeded = getXpToNextLevel(profile.totalXp);
+
   const handleRedeem = async (id: string, title: string, cost: number) => {
-    if (profile.spendableXp < cost) {
+    if (profile.totalXp < cost) {
       Alert.alert(
-        'Insufficient XP',
-        `You need ${cost} spendable XP for this reward. Keep executing your daily habits!`
+        'Insufficient XP Points',
+        `You need ${cost} XP points for this reward. Keep crushing daily tasks and focus sessions to level up and earn XP!`
       );
       return;
     }
 
+    const prevLevel = getLevel(profile.totalXp);
     const success = await redeemReward(id);
     if (success) {
-      setSuccessToast(`🎉 Claimed "${title}"! Enjoy your reward.`);
-      setTimeout(() => setSuccessToast(''), 4000);
+      const newXp = Math.max(0, profile.totalXp - cost);
+      const newLevel = getLevel(newXp);
+      let msg = `🎉 Claimed "${title}"! -${cost} XP deducted. (Remaining: ${newXp} XP)`;
+      if (newLevel.name !== prevLevel.name) {
+        msg += `\n⚠️ Level shifted to ${newLevel.name} ${newLevel.icon}`;
+      }
+      setSuccessToast(msg);
+      setTimeout(() => setSuccessToast(''), 5000);
     }
   };
 
@@ -61,13 +75,26 @@ export const RewardsScreen: React.FC = () => {
         </View>
       ) : null}
 
-      {/* Spendable XP Vault */}
+      {/* XP Points & Level Vault */}
       <Card elevated style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>SPENDABLE XP VAULT</Text>
-        <Text style={styles.balanceVal}>💎 {profile.spendableXp} XP</Text>
-        <Text style={styles.balanceSub}>Earned from completing tasks, focus & workouts</Text>
+        <View style={styles.balanceTopRow}>
+          <View>
+            <Text style={styles.balanceLabel}>DISCIPLINE XP POINTS</Text>
+            <Text style={styles.balanceVal}>⚡ {profile.totalXp} XP</Text>
+          </View>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelBadgeIcon}>{userLevel.icon}</Text>
+            <Text style={styles.levelBadgeText}>{userLevel.name}</Text>
+          </View>
+        </View>
+        <Text style={styles.balanceSub}>
+          Claiming rewards deducts from your XP points and directly determines your user Level.
+        </Text>
+        <View style={styles.levelProgressBarTrack}>
+          <View style={[styles.levelProgressBarFill, { width: `${levelProgress}%` }]} />
+        </View>
         <Text style={styles.balanceHint}>
-          Total Discipline XP: {profile.totalXp} • Spendable balance won't lower your total level.
+          {nextLevel ? `${xpNeeded} XP needed to reach ${nextLevel.name} (${nextLevel.icon})` : '🏆 Max Legend Level Achieved!'}
         </Text>
       </Card>
 
@@ -91,13 +118,13 @@ export const RewardsScreen: React.FC = () => {
       </View>
 
       {rewards.map(reward => {
-        const canAfford = profile.spendableXp >= reward.cost;
+        const canAfford = profile.totalXp >= reward.cost;
         return (
           <Card key={reward.id} style={styles.rewardCard}>
             <View style={styles.rewardRow}>
               <View style={styles.rewardInfo}>
                 <Text style={styles.rewardTitle}>🎁 {reward.title}</Text>
-                <Text style={styles.rewardCost}>💎 {reward.cost} XP</Text>
+                <Text style={styles.rewardCost}>⚡ {reward.cost} XP</Text>
               </View>
               <Button
                 title={canAfford ? 'Redeem' : 'Locked'}
@@ -207,6 +234,11 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
     balanceCard: {
       marginBottom: spacing.xl,
     },
+    balanceTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
     balanceLabel: {
       fontSize: 11,
       fontWeight: '800',
@@ -219,15 +251,49 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       color: colors.textPrimary,
       marginVertical: 4,
     },
-    balanceSub: {
+    levelBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: borderRadius.full,
+    },
+    levelBadgeIcon: {
       fontSize: 14,
+      marginRight: 4,
+    },
+    levelBadgeText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.iceBlue,
+    },
+    balanceSub: {
+      fontSize: 13,
       color: colors.textMuted,
       fontWeight: '600',
+      lineHeight: 18,
+      marginVertical: 6,
+    },
+    levelProgressBarTrack: {
+      height: 6,
+      backgroundColor: colors.border,
+      borderRadius: 3,
+      overflow: 'hidden',
+      marginVertical: 6,
+    },
+    levelProgressBarFill: {
+      height: '100%',
+      backgroundColor: colors.iceBlue,
+      borderRadius: 3,
     },
     balanceHint: {
       fontSize: 12,
       color: colors.textSecondary,
       lineHeight: 16,
+      fontWeight: '600',
     },
     philosophyCard: {
       marginBottom: spacing.lg,

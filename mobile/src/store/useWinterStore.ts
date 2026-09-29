@@ -655,11 +655,16 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   redeemReward: async (rewardId: string) => {
     const { rewards, profile, redemptions } = get();
     const reward = rewards.find(r => r.id === rewardId);
-    if (!reward || profile.spendableXp < reward.cost) return false;
+    if (!reward || profile.totalXp < reward.cost || profile.spendableXp < reward.cost) return false;
+
+    // Deduct reward cost from both XP balances so user level reflects current XP points
+    const nextTotalXp = Math.max(0, profile.totalXp - reward.cost);
+    const nextSpendableXp = Math.max(0, profile.spendableXp - reward.cost);
 
     const nextProfile = {
       ...profile,
-      spendableXp: profile.spendableXp - reward.cost,
+      totalXp: nextTotalXp,
+      spendableXp: nextSpendableXp,
     };
     const nextRedemptions = [
       { id: `red-${Date.now()}`, rewardId, redeemedAt: new Date().toISOString() },
