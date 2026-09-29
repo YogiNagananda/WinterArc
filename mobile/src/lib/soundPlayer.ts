@@ -1,6 +1,47 @@
-import { Vibration, Platform, NativeModules } from 'react-native';
+import { Vibration, Platform } from 'react-native';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
-// Audio Context reference for Web
+// Configure global audio settings for sound playback
+try {
+  setAudioModeAsync({
+    playsInSilentMode: true,
+  }).catch(() => {});
+} catch {}
+
+let alarmPlayer: any = null;
+let celebrationPlayer: any = null;
+let gongPlayer: any = null;
+
+function getAlarmPlayer() {
+  if (!alarmPlayer) {
+    try {
+      alarmPlayer = createAudioPlayer(require('../../assets/battle_alarm.wav'));
+    } catch (err) {
+      console.warn('Error loading battle alarm player:', err);
+    }
+  }
+  return alarmPlayer;
+}
+
+function getCelebrationPlayer() {
+  if (!celebrationPlayer) {
+    try {
+      celebrationPlayer = createAudioPlayer(require('../../assets/celebration.wav'));
+    } catch {}
+  }
+  return celebrationPlayer;
+}
+
+function getGongPlayer() {
+  if (!gongPlayer) {
+    try {
+      gongPlayer = createAudioPlayer(require('../../assets/initiation_gong.wav'));
+    } catch {}
+  }
+  return gongPlayer;
+}
+
+// Audio Context reference for Web fallback
 let webAudioCtx: any = null;
 
 function getWebAudioContext() {
@@ -16,45 +57,56 @@ function getWebAudioContext() {
   return webAudioCtx;
 }
 
-function getExpoAudio() {
-  // Only attempt if native module ExponentAV is actually linked in the runtime
-  if (Platform.OS === 'web') return null;
-  if (!NativeModules || !NativeModules.ExponentAV) return null;
+/**
+ * Pre-warm and unlock audio context on user interaction (e.g. tapping Start Focus).
+ */
+export function unlockAudio() {
   try {
-    const mod = require('expo-av');
-    return mod?.Audio || null;
-  } catch {
-    return null;
-  }
+    getAlarmPlayer();
+    getCelebrationPlayer();
+    getGongPlayer();
+    const ctx = getWebAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  } catch {}
 }
 
 /**
  * Play a HARD, commanding, warrior-tier battle alert when focus timer finishes.
- * Delivers heavy vibrations and loud penetrating multi-tone audio pulses.
+ * Plays high-energy battle alarm WAV audio + multi-pulse heavy vibration.
  */
 export async function playHardCompletionSound() {
   try {
     // 1. Heavy physical vibration alert
     Vibration.vibrate([0, 600, 150, 600, 150, 900]);
 
-    // 2. Web Audio Synthesizer (Loud, hard penetrating battle alert)
+    // 2. Audible sound playback via expo-audio player
+    const player = getAlarmPlayer();
+    if (player) {
+      try {
+        await player.seekTo(0);
+        player.play();
+      } catch (e) {
+        console.warn('Player play error:', e);
+      }
+    }
+
+    // 3. Web Audio Synthesizer backup for browsers
     const ctx = getWebAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-
-      // 3 loud commanding siren pulses
       [0, 0.35, 0.7].forEach(offset => {
         const start = now + offset;
         const duration = 0.28;
 
-        // Penetrating square lead (880Hz / 1320Hz)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(880, start);
         osc.frequency.exponentialRampToValueAtTime(1320, start + duration * 0.7);
 
-        gain.gain.setValueAtTime(0.4, start);
+        gain.gain.setValueAtTime(0.5, start);
         gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
 
         osc.connect(gain);
@@ -62,14 +114,13 @@ export async function playHardCompletionSound() {
         osc.start(start);
         osc.stop(start + duration);
 
-        // Low heavy battle bass punch (110Hz)
         const bassOsc = ctx.createOscillator();
         const bassGain = ctx.createGain();
         bassOsc.type = 'square';
         bassOsc.frequency.setValueAtTime(110, start);
         bassOsc.frequency.exponentialRampToValueAtTime(55, start + duration);
 
-        bassGain.gain.setValueAtTime(0.5, start);
+        bassGain.gain.setValueAtTime(0.6, start);
         bassGain.gain.exponentialRampToValueAtTime(0.001, start + duration);
 
         bassOsc.connect(bassGain);
@@ -77,18 +128,6 @@ export async function playHardCompletionSound() {
         bassOsc.start(start);
         bassOsc.stop(start + duration);
       });
-    }
-
-    // 3. Expo-AV playback on native
-    if (Platform.OS !== 'web') {
-      const Audio = getExpoAudio();
-      if (Audio) {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        }).catch(() => {});
-      }
     }
   } catch (err) {
     console.warn('Sound playback notice:', err);
@@ -102,10 +141,17 @@ export async function playCelebrationSound() {
   try {
     Vibration.vibrate([0, 200, 100, 300]);
 
+    const player = getCelebrationPlayer();
+    if (player) {
+      try {
+        await player.seekTo(0);
+        player.play();
+      } catch {}
+    }
+
     const ctx = getWebAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-      // Ascending major victory fanfare: C5 (523Hz), E5 (659Hz), G5 (784Hz), C6 (1046Hz)
       const freqs = [523.25, 659.25, 783.99, 1046.5];
       freqs.forEach((freq, idx) => {
         const start = now + idx * 0.12;
@@ -131,10 +177,17 @@ export async function playInitiationGong() {
   try {
     Vibration.vibrate([0, 400, 200, 800]);
 
+    const player = getGongPlayer();
+    if (player) {
+      try {
+        await player.seekTo(0);
+        player.play();
+      } catch {}
+    }
+
     const ctx = getWebAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-      // Deep resonant warrior gong: 65Hz + 130Hz + metallic 440Hz shimmer
       const gong = ctx.createOscillator();
       const gongGain = ctx.createGain();
       gong.type = 'sawtooth';

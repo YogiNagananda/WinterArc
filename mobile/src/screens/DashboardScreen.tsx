@@ -252,14 +252,24 @@ export const DashboardScreen: React.FC = () => {
       </View>
 
       {goals.slice(0, 3).map(goal => {
-        const todayLog = goalLogs.find(l => l.goalId === goal.id && l.date === today);
-        const currentVal = todayLog?.value || 0;
+        const isDayGoal = (goal.unit && goal.unit.toLowerCase().includes('day')) || (goal.title && goal.title.toLowerCase().includes('day'));
+        const currentVal = isDayGoal
+          ? new Set(goalLogs.filter(l => l.goalId === goal.id && l.value > 0).map(l => l.date)).size
+          : (goalLogs.filter(l => l.goalId === goal.id).reduce((sum, l) => sum + (l.value || 0), 0) || 0);
         const goalPercent = Math.min(100, Math.round((currentVal / goal.target) * 100));
+        const isTodayDone = goalLogs.some(l => l.goalId === goal.id && l.date === today && l.value > 0);
 
         return (
           <Card key={goal.id} style={styles.goalCard}>
             <View style={styles.goalTopRow}>
-              <Text style={styles.goalTitle}>{goal.title}</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.goalTitle}>{goal.title}</Text>
+                {isDayGoal && (
+                  <Text style={{ fontSize: 10, color: isTodayDone ? colors.mintSuccess : colors.textMuted, fontWeight: '700', marginTop: 2 }}>
+                    {isTodayDone ? '✓ All challenges done (+1 day)' : '⏳ Complete daily challenges to count'}
+                  </Text>
+                )}
+              </View>
               <Text style={styles.goalProgressNum}>
                 {currentVal} / {goal.target} {goal.unit}
               </Text>

@@ -182,6 +182,36 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const redemptions = await localDb.getRedemptions();
     const dayRecords = await localDb.getDayRecords();
 
+    // Ensure all days where all challenges were completed have day-based goal logs recorded
+    const dayGoals = goals.filter(g => !g.archived && (
+      (g.unit && g.unit.toLowerCase().includes('day')) ||
+      (g.title && g.title.toLowerCase().includes('day'))
+    ));
+    if (dayGoals.length > 0 && tasks.length > 0) {
+      const activeTasks = tasks.filter(t => !t.archived);
+      const dateMap = new Map<string, Set<string>>();
+      for (const c of completions) {
+        if (!dateMap.has(c.date)) dateMap.set(c.date, new Set());
+        dateMap.get(c.date)!.add(c.taskId);
+      }
+      let goalLogsUpdated = false;
+      for (const [cDate, taskSet] of dateMap.entries()) {
+        const allDone = activeTasks.length > 0 && activeTasks.every(t => taskSet.has(t.id));
+        if (allDone) {
+          for (const dg of dayGoals) {
+            const hasLog = goalLogs.some(l => l.goalId === dg.id && l.date === cDate && l.value > 0);
+            if (!hasLog) {
+              goalLogs.push({ goalId: dg.id, date: cDate, value: 1 });
+              goalLogsUpdated = true;
+            }
+          }
+        }
+      }
+      if (goalLogsUpdated) {
+        await localDb.saveGoalLogs(goalLogs);
+      }
+    }
+
     set({
       initialized: true,
       profile,
@@ -263,10 +293,45 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     let nextSpendableXp = Math.max(0, profile.spendableXp + xpDelta);
     let updatedProfile = { ...profile, totalXp: nextTotalXp, spendableXp: nextSpendableXp };
 
-    // Check if ALL active tasks for today are now completed!
+    // Check if ALL active tasks for this date are now completed!
     const todayTasks = tasks.filter(t => !t.archived);
     const nextCompletedIds = new Set(nextCompletions.filter(c => c.date === date).map(c => c.taskId));
     const allDone = todayTasks.length > 0 && todayTasks.every(t => nextCompletedIds.has(t.id));
+
+    // Handle day-based goals (unit includes "day" or title includes "day")
+    const { goals, goalLogs } = get();
+    const dayGoals = goals.filter(g => !g.archived && (
+      (g.unit && g.unit.toLowerCase().includes('day')) ||
+      (g.title && g.title.toLowerCase().includes('day'))
+    ));
+
+    let nextGoalLogs = [...goalLogs];
+    let goalLogsChanged = false;
+
+    if (allDone) {
+      // All challenges completed on this date -> count towards day-based goals
+      for (const dg of dayGoals) {
+        const existingIdx = nextGoalLogs.findIndex(l => l.goalId === dg.id && l.date === date);
+        if (existingIdx >= 0) {
+          if (nextGoalLogs[existingIdx].value < 1) {
+            nextGoalLogs[existingIdx] = { ...nextGoalLogs[existingIdx], value: 1 };
+            goalLogsChanged = true;
+          }
+        } else {
+          nextGoalLogs.push({ goalId: dg.id, date, value: 1 });
+          goalLogsChanged = true;
+        }
+      }
+    } else {
+      // Incomplete challenges -> revert this date from day-based goals
+      for (const dg of dayGoals) {
+        const existingIdx = nextGoalLogs.findIndex(l => l.goalId === dg.id && l.date === date);
+        if (existingIdx >= 0 && nextGoalLogs[existingIdx].value > 0) {
+          nextGoalLogs = nextGoalLogs.filter((_, idx) => idx !== existingIdx);
+          goalLogsChanged = true;
+        }
+      }
+    }
 
     if (allDone && existingIndex < 0) {
       // Full Day Cleared Bonus! +100 Spendable XP to shop for video games/movies
@@ -277,14 +342,21 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       };
       playCelebrationSound();
       set({
-        fullDayClearedToast: '👑 FULL DAY CLEARED! +100 Spendable XP Earned! Ready to shop rewards for video games or movies!',
+        fullDayClearedToast: '👑 FULL DAY CLEARED! +100 Spendable XP Earned & Day Goals Incremented! 🎯',
       });
     }
 
     await localDb.saveCompletions(nextCompletions);
     await localDb.saveProfile(updatedProfile);
+    if (goalLogsChanged) {
+      await localDb.saveGoalLogs(nextGoalLogs);
+    }
 
-    set({ completions: nextCompletions, profile: updatedProfile });
+    set({
+      completions: nextCompletions,
+      profile: updatedProfile,
+      ...(goalLogsChanged ? { goalLogs: nextGoalLogs } : {}),
+    });
     syncWithSupabase().catch(() => {});
   },
 

@@ -72,10 +72,13 @@ export const GoalsScreen: React.FC = () => {
         </Card>
       ) : (
         goals.map(goal => {
-          const todayLog = goalLogs.find(l => l.goalId === goal.id && l.date === today);
-          const currentVal = todayLog?.value || 0;
+          const isDayGoal = (goal.unit && goal.unit.toLowerCase().includes('day')) || (goal.title && goal.title.toLowerCase().includes('day'));
+          const currentVal = isDayGoal
+            ? new Set(goalLogs.filter(l => l.goalId === goal.id && l.value > 0).map(l => l.date)).size
+            : (goalLogs.filter(l => l.goalId === goal.id).reduce((sum, l) => sum + (l.value || 0), 0) || 0);
           const pct = Math.min(100, Math.round((currentVal / goal.target) * 100));
           const isComplete = currentVal >= goal.target;
+          const isTodayDone = goalLogs.some(l => l.goalId === goal.id && l.date === today && l.value > 0);
 
           return (
             <Card
@@ -106,8 +109,24 @@ export const GoalsScreen: React.FC = () => {
                 <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
               </View>
 
+              {isDayGoal && (
+                <View style={[styles.dayStatusBadge, isTodayDone ? styles.dayStatusBadgeDone : styles.dayStatusBadgePending]}>
+                  <Text style={[styles.dayStatusText, isTodayDone ? styles.dayStatusTextDone : styles.dayStatusTextPending]}>
+                    {isTodayDone
+                      ? '✓ All daily challenges complete (+1 Day Counted)'
+                      : '⏳ Complete all daily challenges to count today'}
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.stepperContainer}>
-                <Text style={styles.stepperHint}>Tap + to log today's progress</Text>
+                <Text style={styles.stepperHint}>
+                  {isDayGoal
+                    ? isTodayDone
+                      ? "Today is completed & counted! Tap - to undo if needed."
+                      : "Counts automatically after completing all daily challenges."
+                    : "Tap + to log today's progress"}
+                </Text>
                 <View style={styles.stepperButtonGroup}>
                   <TouchableOpacity
                     style={styles.stepBtn}
@@ -311,6 +330,34 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       height: '100%',
       backgroundColor: colors.iceBlue,
       borderRadius: 4,
+    },
+    dayStatusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: borderRadius.sm,
+      marginBottom: spacing.sm,
+    },
+    dayStatusBadgeDone: {
+      backgroundColor: colors.mintSubtle,
+      borderWidth: 1,
+      borderColor: colors.mintSuccess,
+    },
+    dayStatusBadgePending: {
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dayStatusText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    dayStatusTextDone: {
+      color: colors.mintSuccess,
+    },
+    dayStatusTextPending: {
+      color: colors.textMuted,
     },
     stepperContainer: {
       flexDirection: 'row',

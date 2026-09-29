@@ -10,6 +10,7 @@ import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { unlockAudio, playHardCompletionSound } from '../lib/soundPlayer';
 
 const PRESETS = [
   { label: 'Pomodoro', minutes: 25 },
@@ -68,16 +69,19 @@ export const FocusScreen: React.FC = () => {
   // Automatically trigger completion when countdown reaches 0
   useEffect(() => {
     if (isRunning && secondsLeft <= 0 && elapsedSeconds > 0) {
+      playHardCompletionSound();
       stopFocusTimer();
     }
   }, [isRunning, secondsLeft, elapsedSeconds, stopFocusTimer]);
 
   const selectPreset = (min: number) => {
     if (isRunning) return;
+    unlockAudio();
     setFocusTargetMinutes(min);
   };
 
   const handleStartOrToggle = () => {
+    unlockAudio();
     if (!isRunning) {
       startFocusTimer(safeTargetMinutes, taskId);
     } else if (isPaused) {
@@ -183,6 +187,19 @@ export const FocusScreen: React.FC = () => {
           style={styles.resetBtn}
         />
       </View>
+
+      {/* Test Sound Preview */}
+      <TouchableOpacity
+        style={styles.soundTestRow}
+        onPress={() => {
+          unlockAudio();
+          playHardCompletionSound();
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.soundTestIcon}>🔔</Text>
+        <Text style={styles.soundTestText}>Test Battle Alarm Sound</Text>
+      </TouchableOpacity>
 
       {/* Task / Subject Link */}
       <Card style={styles.linkCard}>
@@ -430,5 +447,28 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       color: colors.mintSuccess,
       fontSize: 11,
       fontWeight: '700',
+    },
+    soundTestRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.full,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 16,
+      alignSelf: 'center',
+    },
+    soundTestIcon: {
+      fontSize: 14,
+      marginRight: 6,
+    },
+    soundTestText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
     },
   });
