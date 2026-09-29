@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -17,6 +17,7 @@ import { Priority, RepeatType } from '../types';
 const CATEGORIES = ['All', 'Gym', 'Study', 'Health', 'Work', 'Personal'];
 
 export const TasksScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const tasks = useWinterStore(s => s.tasks);
   const completions = useWinterStore(s => s.completions);
   const toggleTaskCompletion = useWinterStore(s => s.toggleTaskCompletion);
@@ -60,46 +61,61 @@ export const TasksScreen: React.FC = () => {
       repeatDays: [0, 1, 2, 3, 4, 5, 6],
       reminder: 'none',
       xp: parseInt(xp) || 20,
-      archived: false,
     });
+
     setTitle('');
     setDescription('');
     setModalVisible(false);
   };
 
+  const getPriorityStyle = (prio: Priority) => {
+    switch (prio) {
+      case 'high':
+        return { color: colors.dangerCoral, borderColor: colors.dangerCoral };
+      case 'low':
+        return { color: colors.textMuted, borderColor: colors.border };
+      default:
+        return { color: colors.amberWarning, borderColor: colors.amberWarning };
+    }
+  };
+
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
+
   return (
     <View style={styles.container}>
-      {/* Category Pills Header */}
-      <View style={styles.categoryBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CATEGORIES.map(cat => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.catPill, isSelected && styles.catPillActive]}
-                onPress={() => setSelectedCategory(cat)}
-              >
-                <Text style={[styles.catText, isSelected && styles.catTextActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+      {/* Category Pills Bar */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryBar}
+      >
+        {CATEGORIES.map(cat => {
+          const isActive = selectedCategory === cat;
+          return (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.catPill, isActive && styles.catPillActive]}
+              onPress={() => setSelectedCategory(cat)}
+            >
+              <Text style={[styles.catText, isActive && styles.catTextActive]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
+      {/* Main Task List */}
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Header Action Row */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.heading}>Discipline Tasks</Text>
+            <Text style={styles.heading}>Non-Negotiables</Text>
             <Text style={styles.subheading}>
-              {filteredTasks.length} habits • {filteredTasks.filter(t => todayCompletedIds.has(t.id)).length} done today
+              {filteredTasks.filter(t => todayCompletedIds.has(t.id)).length} of {filteredTasks.length} completed today
             </Text>
           </View>
           <Button
-            title="+ New Habit"
+            title="+ New Task"
             onPress={() => setModalVisible(true)}
             size="sm"
             variant="primary"
@@ -108,24 +124,13 @@ export const TasksScreen: React.FC = () => {
 
         {filteredTasks.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No habits found</Text>
-            <Text style={styles.emptyText}>Create a non-negotiable habit to build discipline.</Text>
-            <Button
-              title="Add Habit Now"
-              onPress={() => setModalVisible(true)}
-              variant="secondary"
-              style={{ marginTop: spacing.md }}
-            />
+            <Text style={styles.emptyTitle}>No tasks in this category</Text>
+            <Text style={styles.emptyText}>Add daily habits and non-negotiables to dominate your 90-day arc.</Text>
           </Card>
         ) : (
           filteredTasks.map(task => {
             const isDone = todayCompletedIds.has(task.id);
-            const prioColor =
-              task.priority === 'high'
-                ? colors.dangerCoral
-                : task.priority === 'medium'
-                ? colors.amberWarning
-                : colors.iceBlue;
+            const prioStyle = getPriorityStyle(task.priority);
 
             return (
               <Card
@@ -133,9 +138,9 @@ export const TasksScreen: React.FC = () => {
                 style={[styles.taskCard, isDone && styles.taskCardDone]}
               >
                 <TouchableOpacity
-                  activeOpacity={0.8}
                   style={styles.taskTouch}
                   onPress={() => toggleTaskCompletion(task.id, today)}
+                  activeOpacity={0.7}
                 >
                   <View style={[styles.checkbox, isDone && styles.checkboxDone]}>
                     {isDone && <Text style={styles.checkMark}>✓</Text>}
@@ -150,8 +155,8 @@ export const TasksScreen: React.FC = () => {
                     ) : null}
 
                     <View style={styles.metaRow}>
-                      <View style={[styles.prioTag, { borderColor: prioColor }]}>
-                        <Text style={[styles.prioText, { color: prioColor }]}>
+                      <View style={[styles.prioTag, { borderColor: prioStyle.borderColor }]}>
+                        <Text style={[styles.prioText, { color: prioStyle.color }]}>
                           {task.priority.toUpperCase()}
                         </Text>
                       </View>
@@ -174,7 +179,7 @@ export const TasksScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* New Habit Modal */}
+      {/* Create Task Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -183,52 +188,51 @@ export const TasksScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Habit / Task</Text>
+            <Text style={styles.modalTitle}>Add Daily Habit / Task</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Habit Title (e.g. 5 AM Wakeup, Cold Shower)"
+              placeholder="Task title (e.g. Cold Shower, 100 Pushups)"
               placeholderTextColor={colors.textMuted}
               value={title}
               onChangeText={setTitle}
             />
 
             <TextInput
-              style={[styles.input, { height: 60 }]}
-              placeholder="Description or cues (optional)"
+              style={styles.input}
+              placeholder="Description or notes (optional)"
               placeholderTextColor={colors.textMuted}
               value={description}
               onChangeText={setDescription}
-              multiline
             />
 
-            {/* Category selection */}
+            {/* Category Selector */}
             <Text style={styles.fieldLabel}>CATEGORY</Text>
             <View style={styles.radioRow}>
-              {['Gym', 'Study', 'Health', 'Work', 'Personal'].map(cat => (
+              {['Gym', 'Study', 'Health', 'Work', 'Personal'].map(c => (
                 <TouchableOpacity
-                  key={cat}
-                  style={[styles.radioPill, category === cat && styles.radioPillActive]}
-                  onPress={() => setCategory(cat)}
+                  key={c}
+                  style={[styles.radioPill, category === c && styles.radioPillActive]}
+                  onPress={() => setCategory(c)}
                 >
-                  <Text style={[styles.radioText, category === cat && styles.radioTextActive]}>
-                    {cat}
+                  <Text style={[styles.radioText, category === c && styles.radioTextActive]}>
+                    {c}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Priority selection */}
+            {/* Priority Selector */}
             <Text style={styles.fieldLabel}>PRIORITY</Text>
             <View style={styles.radioRow}>
-              {(['low', 'medium', 'high'] as Priority[]).map(prio => (
+              {(['low', 'medium', 'high'] as Priority[]).map(p => (
                 <TouchableOpacity
-                  key={prio}
-                  style={[styles.radioPill, priority === prio && styles.radioPillActive]}
-                  onPress={() => setPriority(prio)}
+                  key={p}
+                  style={[styles.radioPill, priority === p && styles.radioPillActive]}
+                  onPress={() => setPriority(p)}
                 >
-                  <Text style={[styles.radioText, priority === prio && styles.radioTextActive]}>
-                    {prio.toUpperCase()}
+                  <Text style={[styles.radioText, priority === p && styles.radioTextActive]}>
+                    {p.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -237,14 +241,14 @@ export const TasksScreen: React.FC = () => {
             <View style={styles.modalButtons}>
               <Button
                 title="Cancel"
-                variant="ghost"
                 onPress={() => setModalVisible(false)}
+                variant="secondary"
                 style={{ flex: 1 }}
               />
               <Button
-                title="Save Habit"
-                variant="primary"
+                title="Create Habit"
                 onPress={handleCreate}
+                variant="primary"
                 style={{ flex: 1 }}
               />
             </View>
@@ -255,227 +259,228 @@ export const TasksScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  categoryBar: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.bgSecondary,
-  },
-  catPill: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.cardBg,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  catPillActive: {
-    backgroundColor: colors.iceBlueSubtle,
-    borderColor: colors.iceBlue,
-  },
-  catText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  catTextActive: {
-    color: colors.iceBlue,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  subheading: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    padding: spacing.xl,
-    marginTop: spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  taskCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.md,
-  },
-  taskCardDone: {
-    backgroundColor: colors.mintSubtle,
-    borderColor: 'rgba(0, 217, 127, 0.3)',
-  },
-  taskTouch: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  checkbox: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: colors.borderActive,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-    marginTop: 2,
-  },
-  checkboxDone: {
-    backgroundColor: colors.mintSuccess,
-    borderColor: colors.mintSuccess,
-  },
-  checkMark: {
-    color: '#082519',
-    fontWeight: '900',
-    fontSize: 14,
-  },
-  taskInfo: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  taskTitleDone: {
-    textDecorationLine: 'line-through',
-    color: colors.textMuted,
-  },
-  taskDesc: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  prioTag: {
-    borderWidth: 1,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  prioText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  metaBadge: {
-    fontSize: 10,
-    color: colors.textMuted,
-    backgroundColor: colors.cardElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    fontWeight: '600',
-  },
-  xpTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.mintSuccess,
-  },
-  deleteBtn: {
-    padding: 6,
-    marginLeft: 6,
-  },
-  deleteText: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderActive,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 14,
-    marginBottom: spacing.md,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textMuted,
-    marginBottom: 6,
-  },
-  radioRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: spacing.lg,
-  },
-  radioPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.cardBg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  radioPillActive: {
-    backgroundColor: colors.iceBlueSubtle,
-    borderColor: colors.iceBlue,
-  },
-  radioText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  radioTextActive: {
-    color: colors.iceBlue,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    categoryBar: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.bgSecondary,
+    },
+    catPill: {
+      paddingVertical: 6,
+      paddingHorizontal: 14,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.cardBg,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    catPillActive: {
+      backgroundColor: colors.iceBlueSubtle,
+      borderColor: colors.iceBlue,
+    },
+    catText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    catTextActive: {
+      color: colors.iceBlue,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    heading: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    subheading: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      padding: spacing.xl,
+      marginTop: spacing.xl,
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    emptyText: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    taskCard: {
+      marginBottom: spacing.sm,
+      padding: spacing.md,
+    },
+    taskCardDone: {
+      backgroundColor: colors.mintSubtle,
+      borderColor: 'rgba(0, 217, 127, 0.3)',
+    },
+    taskTouch: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    checkbox: {
+      width: 26,
+      height: 26,
+      borderRadius: 7,
+      borderWidth: 2,
+      borderColor: colors.borderActive,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+      marginTop: 2,
+    },
+    checkboxDone: {
+      backgroundColor: colors.mintSuccess,
+      borderColor: colors.mintSuccess,
+    },
+    checkMark: {
+      color: '#082519',
+      fontWeight: '900',
+      fontSize: 14,
+    },
+    taskInfo: {
+      flex: 1,
+    },
+    taskTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    taskTitleDone: {
+      textDecorationLine: 'line-through',
+      color: colors.textMuted,
+    },
+    taskDesc: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 6,
+      gap: 6,
+      flexWrap: 'wrap',
+    },
+    prioTag: {
+      borderWidth: 1,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    prioText: {
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    metaBadge: {
+      fontSize: 10,
+      color: colors.textMuted,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontWeight: '600',
+    },
+    xpTag: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.mintSuccess,
+    },
+    deleteBtn: {
+      padding: 6,
+      marginLeft: 6,
+    },
+    deleteText: {
+      color: colors.textMuted,
+      fontSize: 14,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: borderRadius.xl,
+      padding: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      fontSize: 14,
+      marginBottom: spacing.md,
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textMuted,
+      marginBottom: 6,
+    },
+    radioRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: spacing.lg,
+    },
+    radioPill: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.cardBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    radioPillActive: {
+      backgroundColor: colors.iceBlueSubtle,
+      borderColor: colors.iceBlue,
+    },
+    radioText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    radioTextActive: {
+      color: colors.iceBlue,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+  });

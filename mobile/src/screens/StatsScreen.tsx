@@ -1,12 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 
@@ -33,10 +32,11 @@ const BADGES = [
 ];
 
 export const StatsScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const profile = useWinterStore(s => s.profile);
   const completions = useWinterStore(s => s.completions);
   const gymSessions = useWinterStore(s => s.gymSessions);
-  const dayRecords = useWinterStore(s => s.dayRecords);
+  const focusTimer = useWinterStore(s => s.focusTimer);
 
   const heatmapDates = generateHeatmapDates(90);
   const completionDates = new Set(completions.map(c => c.date));
@@ -54,92 +54,78 @@ export const StatsScreen: React.FC = () => {
   };
 
   const unlockedCount = Object.values(badgeStates).filter(Boolean).length;
-
-  // Stats calculation
   const totalCompletions = completions.length;
-  const totalFocusMin = 0; // Would come from focus sessions in real use
-  const currentDay = Math.min(
-    profile.arcLength,
-    Math.max(
-      1,
-      Math.floor(
-        (Date.now() - new Date(profile.startDate).getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1
-    )
-  );
+  const totalFocusSessions = focusTimer.completedSessions.length;
+
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Winter Arc Statistics</Text>
-      <Text style={styles.subheading}>Your 90-day discipline scoreboard</Text>
+      <Text style={styles.heading}>Arc Analytics & Proof of Work</Text>
+      <Text style={styles.subheading}>90 days of discipline rendered into data</Text>
 
-      {/* Summary Stats Grid */}
+      {/* Stats Summary Grid */}
       <View style={styles.statsGrid}>
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>🔥</Text>
-          <Text style={styles.statVal}>{profile.streak}</Text>
+          <Text style={styles.statVal}>{profile.streak}d</Text>
           <Text style={styles.statLabel}>Current Streak</Text>
         </Card>
-
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>⚡</Text>
-          <Text style={styles.statVal}>{profile.bestStreak}</Text>
-          <Text style={styles.statLabel}>Best Streak</Text>
-        </Card>
-
-        <Card style={styles.statCard}>
-          <Text style={styles.statEmoji}>✨</Text>
           <Text style={styles.statVal}>{profile.totalXp}</Text>
-          <Text style={styles.statLabel}>Total XP Earned</Text>
+          <Text style={styles.statLabel}>Total XP</Text>
         </Card>
-
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>✅</Text>
           <Text style={styles.statVal}>{totalCompletions}</Text>
-          <Text style={styles.statLabel}>Tasks Completed</Text>
+          <Text style={styles.statLabel}>Habits Done</Text>
         </Card>
-
         <Card style={styles.statCard}>
           <Text style={styles.statEmoji}>🏋️</Text>
           <Text style={styles.statVal}>{gymSessions.length}</Text>
           <Text style={styles.statLabel}>Gym Sessions</Text>
         </Card>
-
         <Card style={styles.statCard}>
-          <Text style={styles.statEmoji}>📅</Text>
-          <Text style={styles.statVal}>Day {currentDay}</Text>
-          <Text style={styles.statLabel}>Arc Progress</Text>
+          <Text style={styles.statEmoji}>⏱️</Text>
+          <Text style={styles.statVal}>{totalFocusSessions}</Text>
+          <Text style={styles.statLabel}>Focus Sprints</Text>
+        </Card>
+        <Card style={styles.statCard}>
+          <Text style={styles.statEmoji}>🛡️</Text>
+          <Text style={styles.statVal}>{profile.freezesLeft}</Text>
+          <Text style={styles.statLabel}>Freezes Left</Text>
         </Card>
       </View>
 
-      {/* 90-Day Heatmap */}
-      <Text style={styles.sectionTitle}>90-Day Activity Heatmap</Text>
+      {/* 90-Day Discipline Heatmap */}
+      <Text style={styles.sectionTitle}>90-DAY DISCIPLINE HEATMAP</Text>
       <Card style={styles.heatmapCard}>
         <View style={styles.heatmapGrid}>
-          {heatmapDates.map(date => {
-            const hasTasks = completionDates.has(date);
-            const isToday = date === new Date().toISOString().split('T')[0];
-
+          {heatmapDates.map((date, idx) => {
+            const hasActivity = completionDates.has(date);
+            const isToday = idx === heatmapDates.length - 1;
             return (
               <View
                 key={date}
                 style={[
                   styles.heatCell,
-                  hasTasks && styles.heatCellActive,
+                  hasActivity && styles.heatCellActive,
                   isToday && styles.heatCellToday,
                 ]}
               />
             );
           })}
         </View>
+
         <View style={styles.heatmapLegend}>
           <View style={styles.legendItem}>
             <View style={[styles.heatCell, { marginRight: 4 }]} />
-            <Text style={styles.legendText}>No activity</Text>
+            <Text style={styles.legendText}>Rest Day</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.heatCell, styles.heatCellActive, { marginRight: 4 }]} />
-            <Text style={styles.legendText}>Tasks done</Text>
+            <Text style={styles.legendText}>Active Day</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.heatCell, styles.heatCellToday, { marginRight: 4 }]} />
@@ -148,26 +134,25 @@ export const StatsScreen: React.FC = () => {
         </View>
       </Card>
 
-      {/* Badges */}
+      {/* Badges / Arc Milestones */}
       <Text style={styles.sectionTitle}>
-        Badges — {unlockedCount}/{BADGES.length} Unlocked
+        ARC ACHIEVEMENTS ({unlockedCount}/{BADGES.length})
       </Text>
-
       <View style={styles.badgesGrid}>
-        {BADGES.map(badge => {
-          const unlocked = badgeStates[badge.condition];
+        {BADGES.map(b => {
+          const isUnlocked = badgeStates[b.condition];
           return (
             <View
-              key={badge.id}
-              style={[styles.badgeCard, !unlocked && styles.badgeCardLocked]}
+              key={b.id}
+              style={[styles.badgeCard, !isUnlocked && styles.badgeCardLocked]}
             >
-              <Text style={[styles.badgeIcon, !unlocked && styles.badgeIconLocked]}>
-                {badge.icon}
+              <Text style={[styles.badgeIcon, !isUnlocked && styles.badgeIconLocked]}>
+                {b.icon}
               </Text>
-              <Text style={[styles.badgeTitle, !unlocked && styles.badgeTitleLocked]}>
-                {badge.title}
+              <Text style={[styles.badgeTitle, !isUnlocked && styles.badgeTitleLocked]}>
+                {b.title}
               </Text>
-              <Text style={styles.badgeDesc}>{badge.desc}</Text>
+              <Text style={styles.badgeDesc}>{b.desc}</Text>
             </View>
           );
         })}
@@ -176,133 +161,134 @@ export const StatsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  heading: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  subheading: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 4,
-    marginBottom: spacing.xl,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: spacing.xl,
-  },
-  statCard: {
-    width: '30%',
-    flexGrow: 1,
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  statEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
-  },
-  statVal: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.iceBlue,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  heatmapCard: {
-    marginBottom: spacing.xl,
-  },
-  heatmapGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: spacing.md,
-  },
-  heatCell: {
-    width: 10,
-    height: 10,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  heatCellActive: {
-    backgroundColor: colors.mintSuccess,
-    opacity: 0.75,
-  },
-  heatCellToday: {
-    backgroundColor: colors.iceBlue,
-  },
-  heatmapLegend: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendText: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  badgeCard: {
-    width: '47%',
-    flexGrow: 1,
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  badgeCardLocked: {
-    opacity: 0.35,
-  },
-  badgeIcon: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
-  badgeIconLocked: {
-    opacity: 0.4,
-  },
-  badgeTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.iceBlue,
-    textAlign: 'center',
-  },
-  badgeTitleLocked: {
-    color: colors.textMuted,
-  },
-  badgeDesc: {
-    fontSize: 10,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
+    heading: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    subheading: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 4,
+      marginBottom: spacing.xl,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: spacing.xl,
+    },
+    statCard: {
+      width: '30%',
+      flexGrow: 1,
+      alignItems: 'center',
+      padding: spacing.md,
+    },
+    statEmoji: {
+      fontSize: 22,
+      marginBottom: 4,
+    },
+    statVal: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.iceBlue,
+    },
+    statLabel: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginTop: 2,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: spacing.md,
+    },
+    heatmapCard: {
+      marginBottom: spacing.xl,
+    },
+    heatmapGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 4,
+      marginBottom: spacing.md,
+    },
+    heatCell: {
+      width: 10,
+      height: 10,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+    },
+    heatCellActive: {
+      backgroundColor: colors.mintSuccess,
+      opacity: 0.85,
+    },
+    heatCellToday: {
+      backgroundColor: colors.iceBlue,
+    },
+    heatmapLegend: {
+      flexDirection: 'row',
+      gap: 12,
+      alignItems: 'center',
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    legendText: {
+      fontSize: 10,
+      color: colors.textMuted,
+    },
+    badgesGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    badgeCard: {
+      width: '47%',
+      flexGrow: 1,
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    badgeCardLocked: {
+      opacity: 0.35,
+    },
+    badgeIcon: {
+      fontSize: 28,
+      marginBottom: 6,
+    },
+    badgeIconLocked: {
+      opacity: 0.4,
+    },
+    badgeTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.iceBlue,
+      textAlign: 'center',
+    },
+    badgeTitleLocked: {
+      color: colors.textMuted,
+    },
+    badgeDesc: {
+      fontSize: 10,
+      color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: 2,
+    },
+  });

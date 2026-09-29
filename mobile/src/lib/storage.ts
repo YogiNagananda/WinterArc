@@ -14,7 +14,58 @@ import {
   Redemption,
   Profile,
   DayRecord,
+  FocusTimerState,
+  FocusSession,
 } from '../types';
+
+// In-memory fallback cache in case native module or web storage is temporarily unavailable
+const memoryCache: Record<string, string> = {};
+
+/**
+ * Universal safe storage adapter:
+ * - Falls back to window.localStorage on Web/Expo Web to prevent null native module error
+ * - Uses AsyncStorage on Native (Android / iOS)
+ * - Uses in-memory cache as safe fallback
+ */
+export const safeStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const val = window.localStorage.getItem(key);
+        if (val !== null) return val;
+      }
+    } catch {}
+    try {
+      const val = await AsyncStorage.getItem(key);
+      if (val !== null) return val;
+    } catch {}
+    return memoryCache[key] ?? null;
+  },
+
+  setItem: async (key: string, value: string): Promise<void> => {
+    memoryCache[key] = value;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {}
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch {}
+  },
+
+  removeItem: async (key: string): Promise<void> => {
+    delete memoryCache[key];
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch {}
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {}
+  },
+};
 
 const STORAGE_KEYS = {
   TASKS: '@winterarc_tasks',
@@ -31,24 +82,23 @@ const STORAGE_KEYS = {
   REDEMPTIONS: '@winterarc_redemptions',
   PROFILE: '@winterarc_profile',
   DAY_RECORDS: '@winterarc_day_records',
+  FOCUS_TIMER: '@winterarc_focus_timer',
+  FOCUS_SESSIONS: '@winterarc_focus_sessions',
 };
 
 async function getItem<T>(key: string, defaultValue: T): Promise<T> {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    const raw = await safeStorage.getItem(key);
     return raw ? JSON.parse(raw) : defaultValue;
   } catch (e) {
-    console.warn(`Error reading key ${key} from storage:`, e);
     return defaultValue;
   }
 }
 
 async function setItem<T>(key: string, value: T): Promise<void> {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn(`Error writing key ${key} to storage:`, e);
-  }
+    await safeStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {}
 }
 
 export const defaultProfile: Profile = {
@@ -65,6 +115,16 @@ export const defaultProfile: Profile = {
   soundEnabled: true,
   notificationsEnabled: true,
   sampleDataLoaded: false,
+};
+
+export const defaultFocusTimer: FocusTimerState = {
+  isRunning: false,
+  isPaused: false,
+  targetMinutes: 25,
+  startedAt: null,
+  accumulatedMs: 0,
+  taskId: undefined,
+  completedSessions: [],
 };
 
 export const localDb = {
@@ -109,4 +169,10 @@ export const localDb = {
 
   getDayRecords: () => getItem<DayRecord[]>(STORAGE_KEYS.DAY_RECORDS, []),
   saveDayRecords: (records: DayRecord[]) => setItem(STORAGE_KEYS.DAY_RECORDS, records),
+
+  getFocusTimer: () => getItem<FocusTimerState>(STORAGE_KEYS.FOCUS_TIMER, defaultFocusTimer),
+  saveFocusTimer: (timer: FocusTimerState) => setItem(STORAGE_KEYS.FOCUS_TIMER, timer),
+
+  getFocusSessions: () => getItem<FocusSession[]>(STORAGE_KEYS.FOCUS_SESSIONS, []),
+  saveFocusSessions: (sessions: FocusSession[]) => setItem(STORAGE_KEYS.FOCUS_SESSIONS, sessions),
 };

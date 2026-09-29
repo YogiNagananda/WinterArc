@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,13 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 
 export const RewardsScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const profile = useWinterStore(s => s.profile);
   const rewards = useWinterStore(s => s.rewards);
   const redemptions = useWinterStore(s => s.redemptions);
@@ -49,6 +50,8 @@ export const RewardsScreen: React.FC = () => {
     setModalVisible(false);
   };
 
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Toast Alert */}
@@ -58,44 +61,41 @@ export const RewardsScreen: React.FC = () => {
         </View>
       ) : null}
 
-      {/* Spendable XP Balance Card */}
+      {/* Spendable XP Vault */}
       <Card elevated style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>AVAILABLE DISCIPLINE XP</Text>
-        <Text style={styles.balanceVal}>
-          ⚡ {profile.spendableXp} <Text style={styles.balanceSub}>spendable</Text>
-        </Text>
+        <Text style={styles.balanceLabel}>SPENDABLE XP VAULT</Text>
+        <Text style={styles.balanceVal}>💎 {profile.spendableXp} XP</Text>
+        <Text style={styles.balanceSub}>Earned from completing tasks, focus & workouts</Text>
         <Text style={styles.balanceHint}>
-          Earn XP by completing daily non-negotiables, workouts, study sprints, and goals.
+          Total Discipline XP: {profile.totalXp} • Spendable balance won't lower your total level.
         </Text>
       </Card>
 
-      {/* Header Row */}
+      {/* Rewards Catalog */}
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Rewards Marketplace</Text>
+        <Text style={styles.heading}>Discipline Shop</Text>
         <Button
-          title="+ Custom Reward"
+          title="+ Add Custom Reward"
           onPress={() => setModalVisible(true)}
           size="sm"
           variant="secondary"
         />
       </View>
 
-      {/* Rewards Catalog */}
-      {rewards.map(r => {
-        const canAfford = profile.spendableXp >= r.cost;
+      {rewards.map(reward => {
+        const canAfford = profile.spendableXp >= reward.cost;
         return (
-          <Card key={r.id} style={styles.rewardCard}>
+          <Card key={reward.id} style={styles.rewardCard}>
             <View style={styles.rewardRow}>
               <View style={styles.rewardInfo}>
-                <Text style={styles.rewardTitle}>{r.title}</Text>
-                <Text style={styles.rewardCost}>⚡ {r.cost} XP</Text>
+                <Text style={styles.rewardTitle}>🎁 {reward.title}</Text>
+                <Text style={styles.rewardCost}>💎 {reward.cost} XP</Text>
               </View>
-
               <Button
-                title={canAfford ? 'REDEEM' : 'LOCKED'}
-                onPress={() => handleRedeem(r.id, r.title, r.cost)}
+                title={canAfford ? 'Redeem' : 'Locked'}
+                onPress={() => handleRedeem(reward.id, reward.title, reward.cost)}
                 disabled={!canAfford}
-                variant={canAfford ? 'primary' : 'ghost'}
+                variant={canAfford ? 'primary' : 'secondary'}
                 size="sm"
               />
             </View>
@@ -103,27 +103,29 @@ export const RewardsScreen: React.FC = () => {
         );
       })}
 
-      {/* Redemptions History */}
+      {/* Redemption History */}
       <Text style={[styles.heading, { marginTop: spacing.xl, marginBottom: spacing.md }]}>
-        Claim History ({redemptions.length})
+        Claimed Rewards History
       </Text>
-      {redemptions.length === 0 ? (
-        <Text style={styles.emptyText}>No rewards redeemed yet. Work hard and earn your rewards!</Text>
-      ) : (
-        redemptions.slice(0, 5).map(red => {
-          const item = rewards.find(r => r.id === red.rewardId);
-          return (
-            <View key={red.id} style={styles.historyRow}>
-              <Text style={styles.historyTitle}>🎁 {item?.title || 'Reward'}</Text>
-              <Text style={styles.historyTime}>
-                {new Date(red.redeemedAt).toLocaleDateString()}
-              </Text>
-            </View>
-          );
-        })
-      )}
+      <Card>
+        {redemptions.length === 0 ? (
+          <Text style={styles.emptyText}>No rewards claimed yet. Save your XP for something meaningful!</Text>
+        ) : (
+          redemptions.map(r => {
+            const rewardObj = rewards.find(rew => rew.id === r.rewardId);
+            return (
+              <View key={r.id} style={styles.historyRow}>
+                <Text style={styles.historyTitle}>✓ {rewardObj?.title || 'Reward'}</Text>
+                <Text style={styles.historyTime}>
+                  {new Date(r.redeemedAt).toLocaleDateString()}
+                </Text>
+              </View>
+            );
+          })
+        )}
+      </Card>
 
-      {/* Custom Reward Modal */}
+      {/* Add Custom Reward Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -132,10 +134,10 @@ export const RewardsScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Custom Discipline Reward</Text>
+            <Text style={styles.modalTitle}>Add Custom Reward</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. Cheat meal pizza, Buy new sneakers"
+              placeholder="Reward (e.g. Cheat Meal, Movie Night)"
               placeholderTextColor={colors.textMuted}
               value={rewardTitle}
               onChangeText={setRewardTitle}
@@ -143,7 +145,7 @@ export const RewardsScreen: React.FC = () => {
             <Text style={styles.fieldLabel}>XP COST</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 200"
+              placeholder="e.g. 150"
               placeholderTextColor={colors.textMuted}
               value={rewardCost}
               onChangeText={setRewardCost}
@@ -152,14 +154,14 @@ export const RewardsScreen: React.FC = () => {
             <View style={styles.modalButtons}>
               <Button
                 title="Cancel"
-                variant="ghost"
                 onPress={() => setModalVisible(false)}
+                variant="secondary"
                 style={{ flex: 1 }}
               />
               <Button
-                title="Create Reward"
-                variant="primary"
+                title="Add to Shop"
                 onPress={handleCreate}
+                variant="primary"
                 style={{ flex: 1 }}
               />
             </View>
@@ -170,145 +172,146 @@ export const RewardsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  toast: {
-    backgroundColor: colors.mintSubtle,
-    borderWidth: 1,
-    borderColor: colors.mintSuccess,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-  },
-  toastText: {
-    color: colors.mintSuccess,
-    fontWeight: '800',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  balanceCard: {
-    marginBottom: spacing.xl,
-  },
-  balanceLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.iceBlue,
-    letterSpacing: 1,
-  },
-  balanceVal: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    marginVertical: 4,
-  },
-  balanceSub: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
-  balanceHint: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  heading: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  rewardCard: {
-    marginBottom: spacing.sm,
-  },
-  rewardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rewardInfo: {
-    flex: 1,
-  },
-  rewardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  rewardCost: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.mintSuccess,
-    marginTop: 2,
-  },
-  historyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  historyTitle: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  historyTime: {
-    color: colors.textMuted,
-    fontSize: 12,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontStyle: 'italic',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderActive,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 14,
-    marginBottom: spacing.md,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textMuted,
-    marginBottom: 6,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
+    toast: {
+      backgroundColor: colors.mintSubtle,
+      borderWidth: 1,
+      borderColor: colors.mintSuccess,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+    },
+    toastText: {
+      color: colors.mintSuccess,
+      fontWeight: '800',
+      fontSize: 13,
+      textAlign: 'center',
+    },
+    balanceCard: {
+      marginBottom: spacing.xl,
+    },
+    balanceLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.iceBlue,
+      letterSpacing: 1,
+    },
+    balanceVal: {
+      fontSize: 32,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginVertical: 4,
+    },
+    balanceSub: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    balanceHint: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 16,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    heading: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    rewardCard: {
+      marginBottom: spacing.sm,
+    },
+    rewardRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    rewardInfo: {
+      flex: 1,
+    },
+    rewardTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    rewardCost: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.mintSuccess,
+      marginTop: 2,
+    },
+    historyRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    historyTitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    historyTime: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontStyle: 'italic',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: borderRadius.xl,
+      padding: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      fontSize: 14,
+      marginBottom: spacing.md,
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textMuted,
+      marginBottom: 6,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+  });

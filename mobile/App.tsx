@@ -22,17 +22,21 @@ import { NotesScreen } from './src/screens/NotesScreen';
 import { StatsScreen } from './src/screens/StatsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
-import { colors } from './src/theme/colors';
+import { useTheme } from './src/theme/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Splash / Loading Component
 // ─────────────────────────────────────────────────────────────────────────────
 function LoadingScreen() {
+  const { colors } = useTheme();
+
   return (
-    <View style={loadStyles.container}>
+    <View style={[loadStyles.container, { backgroundColor: colors.bgPrimary }]}>
       <Text style={loadStyles.emoji}>❄️</Text>
-      <Text style={loadStyles.brand}>WINTER ARC</Text>
-      <Text style={loadStyles.tagline}>90 Days. No Excuses. One Direction.</Text>
+      <Text style={[loadStyles.brand, { color: colors.iceBlue }]}>WINTER ARC</Text>
+      <Text style={[loadStyles.tagline, { color: colors.textMuted }]}>
+        90 Days. No Excuses. One Direction.
+      </Text>
     </View>
   );
 }
@@ -40,7 +44,6 @@ function LoadingScreen() {
 const loadStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -51,12 +54,10 @@ const loadStyles = StyleSheet.create({
   brand: {
     fontSize: 28,
     fontWeight: '900',
-    color: colors.iceBlue,
     letterSpacing: 3,
   },
   tagline: {
     fontSize: 13,
-    color: colors.textMuted,
     marginTop: 8,
     fontStyle: 'italic',
     letterSpacing: 0.5,
@@ -101,15 +102,43 @@ function ActiveScreen() {
 export default function App() {
   const initialized = useWinterStore(s => s.initialized);
   const initialize = useWinterStore(s => s.initialize);
+  const focusTimer = useWinterStore(s => s.focusTimer);
+  const stopFocusTimer = useWinterStore(s => s.stopFocusTimer);
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     initialize();
   }, []);
 
+  // Global background timer tracker so sessions finish even if navigating away
+  useEffect(() => {
+    if (focusTimer.isRunning && !focusTimer.isPaused && focusTimer.startedAt) {
+      const checkInterval = setInterval(() => {
+        const elapsed = Math.floor(
+          (focusTimer.accumulatedMs + (Date.now() - focusTimer.startedAt!)) / 1000
+        );
+        if (elapsed >= focusTimer.targetMinutes * 60) {
+          stopFocusTimer();
+        }
+      }, 2000);
+      return () => clearInterval(checkInterval);
+    }
+  }, [
+    focusTimer.isRunning,
+    focusTimer.isPaused,
+    focusTimer.startedAt,
+    focusTimer.accumulatedMs,
+    focusTimer.targetMinutes,
+    stopFocusTimer,
+  ]);
+
   if (!initialized) {
     return (
       <>
-        <StatusBar barStyle="light-content" backgroundColor={colors.bgPrimary} />
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.bgPrimary}
+        />
         <LoadingScreen />
       </>
     );
@@ -117,9 +146,12 @@ export default function App() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor={colors.bgPrimary} />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bgPrimary}
+      />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPrimary }]}>
+        <View style={[styles.container, { backgroundColor: colors.bgPrimary }]}>
           {/* Sticky header with arc day, streak, XP */}
           <Header />
 
@@ -139,11 +171,9 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.bgPrimary,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.bgPrimary,
   },
   screenContainer: {
     flex: 1,

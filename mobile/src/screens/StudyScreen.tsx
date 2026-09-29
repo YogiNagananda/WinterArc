@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,13 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 
 export const StudyScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const subjects = useWinterStore(s => s.studySubjects);
   const studySessions = useWinterStore(s => s.studySessions);
   const addSubject = useWinterStore(s => s.addSubject);
@@ -43,6 +44,8 @@ export const StudyScreen: React.FC = () => {
     setLogModalVisible(false);
   };
 
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
@@ -60,35 +63,25 @@ export const StudyScreen: React.FC = () => {
 
       {subjects.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No study tracks created</Text>
-          <Text style={styles.emptyText}>Add topics you want to conquer: Coding, Math, Languages, etc.</Text>
-          <Button
-            title="Create Subject"
-            onPress={() => setModalVisible(true)}
-            variant="secondary"
-            style={{ marginTop: spacing.md }}
-          />
+          <Text style={styles.emptyTitle}>No Subjects Tracked</Text>
+          <Text style={styles.emptyText}>Add topics you are studying (e.g. System Design, Calculus, French).</Text>
         </Card>
       ) : (
-        subjects.map(subject => {
-          // Calculate logged minutes
-          const loggedMin = studySessions
-            .filter(s => s.subjectId === subject.id)
-            .reduce((sum, s) => sum + s.minutes, 0);
-
-          const targetMin = subject.weeklyTargetMin || 300;
-          const pct = Math.min(100, Math.round((loggedMin / targetMin) * 100));
+        subjects.map(subj => {
+          const sessions = studySessions.filter(s => s.subjectId === subj.id);
+          const totalMin = sessions.reduce((acc, s) => acc + s.minutes, 0);
+          const targetMin = subj.weeklyTargetMin || 300;
+          const pct = Math.min(100, Math.round((totalMin / targetMin) * 100));
 
           return (
-            <Card key={subject.id} elevated style={styles.subjectCard}>
+            <Card key={subj.id} style={styles.subjectCard}>
               <View style={styles.subjectTopRow}>
-                <Text style={styles.subjectName}>{subject.name}</Text>
+                <Text style={styles.subjectName}>{subj.name}</Text>
                 <Text style={styles.hoursRatio}>
-                  {(loggedMin / 60).toFixed(1)}h / {(targetMin / 60).toFixed(1)}h
+                  {(totalMin / 60).toFixed(1)} / {(targetMin / 60).toFixed(0)} hrs this week
                 </Text>
               </View>
 
-              {/* Progress bar */}
               <View style={styles.progressBarTrack}>
                 <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
               </View>
@@ -96,13 +89,13 @@ export const StudyScreen: React.FC = () => {
               <View style={styles.cardBottomRow}>
                 <Text style={styles.pctText}>{pct}% of weekly target</Text>
                 <Button
-                  title="+ Log Study"
+                  title="+ Log Session"
                   onPress={() => {
-                    setSelectedSubjectId(subject.id);
+                    setSelectedSubjectId(subj.id);
                     setLogModalVisible(true);
                   }}
-                  size="sm"
                   variant="secondary"
+                  size="sm"
                 />
               </View>
             </Card>
@@ -119,10 +112,10 @@ export const StudyScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Study Track</Text>
+            <Text style={styles.modalTitle}>Add Study Subject</Text>
             <TextInput
               style={styles.input}
-              placeholder="Subject Name (e.g. Distributed Systems, Calculus)"
+              placeholder="Subject name (e.g. Machine Learning)"
               placeholderTextColor={colors.textMuted}
               value={name}
               onChangeText={setName}
@@ -130,7 +123,7 @@ export const StudyScreen: React.FC = () => {
             <Text style={styles.fieldLabel}>WEEKLY TARGET (HOURS)</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 6"
+              placeholder="e.g. 5"
               placeholderTextColor={colors.textMuted}
               value={weeklyHours}
               onChangeText={setWeeklyHours}
@@ -139,14 +132,14 @@ export const StudyScreen: React.FC = () => {
             <View style={styles.modalButtons}>
               <Button
                 title="Cancel"
-                variant="ghost"
                 onPress={() => setModalVisible(false)}
+                variant="secondary"
                 style={{ flex: 1 }}
               />
               <Button
-                title="Save Subject"
-                variant="primary"
+                title="Add Subject"
                 onPress={handleCreateSubject}
+                variant="primary"
                 style={{ flex: 1 }}
               />
             </View>
@@ -163,7 +156,7 @@ export const StudyScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Log Study Time</Text>
+            <Text style={styles.modalTitle}>Log Study Session</Text>
             <Text style={styles.fieldLabel}>DURATION (MINUTES)</Text>
             <TextInput
               style={styles.input}
@@ -176,14 +169,14 @@ export const StudyScreen: React.FC = () => {
             <View style={styles.modalButtons}>
               <Button
                 title="Cancel"
-                variant="ghost"
                 onPress={() => setLogModalVisible(false)}
+                variant="secondary"
                 style={{ flex: 1 }}
               />
               <Button
-                title="Confirm (+XP)"
-                variant="success"
+                title="Log (+XP)"
                 onPress={handleLogSession}
+                variant="primary"
                 style={{ flex: 1 }}
               />
             </View>
@@ -194,126 +187,127 @@ export const StudyScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  subheading: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    padding: spacing.xl,
-    marginTop: spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  subjectCard: {
-    marginBottom: spacing.md,
-  },
-  subjectTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  subjectName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  hoursRatio: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.iceBlue,
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: spacing.md,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.iceBlue,
-    borderRadius: 4,
-  },
-  cardBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pctText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderActive,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 14,
-    marginBottom: spacing.md,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textMuted,
-    marginBottom: 6,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    heading: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    subheading: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      padding: spacing.xl,
+      marginTop: spacing.xl,
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    emptyText: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    subjectCard: {
+      marginBottom: spacing.md,
+    },
+    subjectTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    subjectName: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    hoursRatio: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.iceBlue,
+    },
+    progressBarTrack: {
+      height: 8,
+      backgroundColor: colors.border,
+      borderRadius: 4,
+      overflow: 'hidden',
+      marginBottom: spacing.md,
+    },
+    progressBarFill: {
+      height: '100%',
+      backgroundColor: colors.iceBlue,
+      borderRadius: 4,
+    },
+    cardBottomRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pctText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '700',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: borderRadius.xl,
+      padding: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      fontSize: 14,
+      marginBottom: spacing.md,
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textMuted,
+      marginBottom: 6,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+  });

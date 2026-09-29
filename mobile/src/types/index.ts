@@ -159,3 +159,14 @@ export interface Badge {
   icon: string;
   unlocked: boolean;
 }
+
+export interface FocusTimerState {
+  isRunning: boolean;
+  isPaused: boolean;
+  targetMinutes: number;
+  startedAt: number | null; // Date.now() timestamp
+  accumulatedMs: number;
+  taskId?: string;
+  completedSessions: number[];
+}
+

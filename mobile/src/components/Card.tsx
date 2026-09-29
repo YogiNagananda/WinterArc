@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { colors, borderRadius, spacing } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 
 interface CardProps {
   children: React.ReactNode;
@@ -9,6 +9,9 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, style, elevated }) => {
+  const { colors, borderRadius, spacing } = useTheme();
+  const styles = useMemo(() => createStyles(colors, borderRadius, spacing), [colors, borderRadius, spacing]);
+
   return (
     <View style={[styles.card, elevated && styles.elevated, style]}>
       {children}
@@ -16,21 +19,22 @@ export const Card: React.FC<CardProps> = ({ children, style, elevated }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  elevated: {
-    backgroundColor: colors.cardElevated,
-    borderColor: colors.borderActive,
-  },
-});
+const createStyles = (colors: any, borderRadius: any, spacing: any) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    elevated: {
+      backgroundColor: colors.cardElevated,
+      borderColor: colors.borderActive,
+    },
+  });

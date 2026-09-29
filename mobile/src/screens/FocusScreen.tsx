@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -19,58 +19,66 @@ const PRESETS = [
 ];
 
 export const FocusScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const tasks = useWinterStore(s => s.tasks);
-  const studySubjects = useWinterStore(s => s.studySubjects);
-  const logFocusSession = useWinterStore(s => s.logFocusSession);
+  const focusTimer = useWinterStore(s => s.focusTimer);
+  const startFocusTimer = useWinterStore(s => s.startFocusTimer);
+  const pauseFocusTimer = useWinterStore(s => s.pauseFocusTimer);
+  const resumeFocusTimer = useWinterStore(s => s.resumeFocusTimer);
+  const stopFocusTimer = useWinterStore(s => s.stopFocusTimer);
+  const resetFocusTimer = useWinterStore(s => s.resetFocusTimer);
+  const setFocusTargetMinutes = useWinterStore(s => s.setFocusTargetMinutes);
+  const setFocusSelectedTaskId = useWinterStore(s => s.setFocusSelectedTaskId);
 
-  const [selectedMinutes, setSelectedMinutes] = useState(25);
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [completedSessions, setCompletedSessions] = useState<number[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
+  // Tick trigger to re-render display every second while timer is running
+  const [, setTick] = useState(0);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const { isRunning, isPaused, targetMinutes, startedAt, accumulatedMs, taskId, completedSessions } = focusTimer;
 
-  useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          if (prev <= 1) {
-            handleComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+  // Calculate live elapsed seconds based on persistent timestamps
+  const elapsedSeconds = useMemo(() => {
+    if (!isRunning) return 0;
+    let totalMs = accumulatedMs;
+    if (!isPaused && startedAt) {
+      totalMs += Math.max(0, Date.now() - startedAt);
     }
+    return Math.floor(totalMs / 1000);
+  }, [isRunning, isPaused, startedAt, accumulatedMs, focusTimer]);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRunning]);
+  const totalTargetSeconds = targetMinutes * 60;
+  const secondsLeft = Math.max(0, totalTargetSeconds - elapsedSeconds);
+
+  // Interval for smooth countdown display while screen is mounted
+  useEffect(() => {
+    if (isRunning && !isPaused) {
+      const interval = setInterval(() => {
+        setTick(t => t + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isRunning, isPaused]);
+
+  // Handle completion when time runs out
+  useEffect(() => {
+    if (isRunning && secondsLeft <= 0) {
+      stopFocusTimer();
+    }
+  }, [isRunning, secondsLeft, stopFocusTimer]);
 
   const selectPreset = (min: number) => {
     if (isRunning) return;
-    setSelectedMinutes(min);
-    setSecondsLeft(min * 60);
+    setFocusTargetMinutes(min);
   };
 
-  const togglePlay = () => {
-    setIsRunning(!isRunning);
-  };
-
-  const resetTimer = () => {
-    setIsRunning(false);
-    setSecondsLeft(selectedMinutes * 60);
-  };
-
-  const handleComplete = () => {
-    setIsRunning(false);
-    logFocusSession(selectedMinutes, selectedTaskId);
-    setCompletedSessions(prev => [selectedMinutes, ...prev]);
-    setSecondsLeft(selectedMinutes * 60);
+  const handleStartOrToggle = () => {
+    if (!isRunning) {
+      startFocusTimer(targetMinutes, taskId);
+    } else if (isPaused) {
+      resumeFocusTimer();
+    } else {
+      pauseFocusTimer();
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -79,7 +87,7 @@ export const FocusScreen: React.FC = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const progress = 1 - secondsLeft / (selectedMinutes * 60);
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -89,7 +97,7 @@ export const FocusScreen: React.FC = () => {
       {/* Preset Selector */}
       <View style={styles.presetsRow}>
         {PRESETS.map(p => {
-          const isActive = selectedMinutes === p.minutes;
+          const isActive = targetMinutes === p.minutes;
           return (
             <TouchableOpacity
               key={p.label}
@@ -110,10 +118,10 @@ export const FocusScreen: React.FC = () => {
         <View style={styles.timerCircleInner}>
           <Text style={styles.timerDisplay}>{formatTime(secondsLeft)}</Text>
           <Text style={styles.timerSub}>
-            {isRunning ? 'FOCUSING' : 'READY TO GRIND'}
+            {!isRunning ? 'READY TO GRIND' : isPaused ? 'PAUSED' : 'FOCUSING'}
           </Text>
           <Text style={styles.xpHint}>
-            +{Math.round(selectedMinutes * 0.8)} XP on completion
+            +{Math.round(targetMinutes * 0.8)} XP on completion
           </Text>
         </View>
       </View>
@@ -121,15 +129,23 @@ export const FocusScreen: React.FC = () => {
       {/* Timer Controls */}
       <View style={styles.controlsRow}>
         <Button
-          title={isRunning ? 'PAUSE' : 'START FOCUS'}
-          onPress={togglePlay}
-          variant={isRunning ? 'secondary' : 'primary'}
+          title={!isRunning ? 'START FOCUS' : isPaused ? 'RESUME' : 'PAUSE'}
+          onPress={handleStartOrToggle}
+          variant={isRunning && !isPaused ? 'secondary' : 'primary'}
           size="lg"
           style={styles.mainControlBtn}
         />
+        {isRunning && (
+          <Button
+            title="LOG SESSION"
+            onPress={() => stopFocusTimer()}
+            variant="primary"
+            style={styles.logBtn}
+          />
+        )}
         <Button
           title="RESET"
-          onPress={resetTimer}
+          onPress={() => resetFocusTimer()}
           variant="ghost"
           style={styles.resetBtn}
         />
@@ -140,12 +156,12 @@ export const FocusScreen: React.FC = () => {
         <Text style={styles.linkTitle}>Focusing On (Optional)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
           {tasks.slice(0, 5).map(task => {
-            const isSel = selectedTaskId === task.id;
+            const isSel = taskId === task.id;
             return (
               <TouchableOpacity
                 key={task.id}
                 style={[styles.taskOption, isSel && styles.taskOptionActive]}
-                onPress={() => setSelectedTaskId(isSel ? undefined : task.id)}
+                onPress={() => setFocusSelectedTaskId(isSel ? undefined : task.id)}
               >
                 <Text style={[styles.taskOptionText, isSel && styles.taskOptionTextActive]}>
                   {task.title}
@@ -175,167 +191,172 @@ export const FocusScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  heading: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    letterSpacing: 0.5,
-  },
-  subheading: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 4,
-    marginBottom: spacing.lg,
-  },
-  presetsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-  },
-  presetPill: {
-    backgroundColor: colors.cardBg,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  presetPillActive: {
-    backgroundColor: colors.iceBlueSubtle,
-    borderColor: colors.iceBlue,
-  },
-  presetText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  presetTextActive: {
-    color: colors.iceBlue,
-  },
-  timerCircleOuter: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: colors.cardBg,
-    borderWidth: 3,
-    borderColor: colors.iceBlue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.iceBlue,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: spacing.xl,
-  },
-  timerCircleInner: {
-    alignItems: 'center',
-  },
-  timerDisplay: {
-    fontSize: 52,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: 2,
-    fontVariant: ['tabular-nums'],
-  },
-  timerSub: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.mintSuccess,
-    letterSpacing: 1.5,
-    marginTop: 4,
-  },
-  xpHint: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 6,
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-    width: '100%',
-  },
-  mainControlBtn: {
-    flex: 2,
-  },
-  resetBtn: {
-    flex: 1,
-  },
-  linkCard: {
-    width: '100%',
-    marginBottom: spacing.md,
-  },
-  linkTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  taskOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.cardElevated,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  taskOptionActive: {
-    borderColor: colors.iceBlue,
-    backgroundColor: colors.iceBlueSubtle,
-  },
-  taskOptionText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  taskOptionTextActive: {
-    color: colors.iceBlue,
-  },
-  sessionsCard: {
-    width: '100%',
-  },
-  sessionsTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 6,
-  },
-  sessionsEmpty: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontStyle: 'italic',
-  },
-  sessionChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  sessionChip: {
-    backgroundColor: colors.mintSubtle,
-    borderWidth: 1,
-    borderColor: colors.mintSuccess,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
-  },
-  sessionChipText: {
-    color: colors.mintSuccess,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+      alignItems: 'center',
+    },
+    heading: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      letterSpacing: 0.5,
+    },
+    subheading: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: 4,
+      marginBottom: spacing.lg,
+    },
+    presetsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    presetPill: {
+      backgroundColor: colors.cardBg,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: borderRadius.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    presetPillActive: {
+      backgroundColor: colors.iceBlueSubtle,
+      borderColor: colors.iceBlue,
+    },
+    presetText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    presetTextActive: {
+      color: colors.iceBlue,
+    },
+    timerCircleOuter: {
+      width: 250,
+      height: 250,
+      borderRadius: 125,
+      backgroundColor: colors.cardBg,
+      borderWidth: 3,
+      borderColor: colors.iceBlue,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.iceBlue,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.35,
+      shadowRadius: 20,
+      elevation: 8,
+      marginBottom: spacing.xl,
+    },
+    timerCircleInner: {
+      alignItems: 'center',
+    },
+    timerDisplay: {
+      fontSize: 52,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 2,
+      fontVariant: ['tabular-nums'],
+    },
+    timerSub: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.mintSuccess,
+      letterSpacing: 1.5,
+      marginTop: 4,
+    },
+    xpHint: {
+      fontSize: 11,
+      color: colors.textMuted,
+      marginTop: 6,
+    },
+    controlsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.xl,
+      width: '100%',
+    },
+    mainControlBtn: {
+      flex: 2,
+    },
+    logBtn: {
+      flex: 2,
+      backgroundColor: colors.mintSuccess,
+    },
+    resetBtn: {
+      flex: 1,
+    },
+    linkCard: {
+      width: '100%',
+      marginBottom: spacing.md,
+    },
+    linkTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    taskOption: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.cardElevated,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    taskOptionActive: {
+      borderColor: colors.iceBlue,
+      backgroundColor: colors.iceBlueSubtle,
+    },
+    taskOptionText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    taskOptionTextActive: {
+      color: colors.iceBlue,
+    },
+    sessionsCard: {
+      width: '100%',
+    },
+    sessionsTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 6,
+    },
+    sessionsEmpty: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontStyle: 'italic',
+    },
+    sessionChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 4,
+    },
+    sessionChip: {
+      backgroundColor: colors.mintSubtle,
+      borderWidth: 1,
+      borderColor: colors.mintSuccess,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: borderRadius.full,
+    },
+    sessionChipText: {
+      color: colors.mintSuccess,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+  });

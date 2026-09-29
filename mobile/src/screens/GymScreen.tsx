@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
-import { colors, spacing, borderRadius } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -17,6 +17,7 @@ import { GymExercise } from '../types';
 const SPLIT_PRESETS = ['Push Day', 'Pull Day', 'Legs', 'Upper Body', 'Full Body'];
 
 export const GymScreen: React.FC = () => {
+  const { colors, spacing, borderRadius } = useTheme();
   const gymSessions = useWinterStore(s => s.gymSessions);
   const weightLogs = useWinterStore(s => s.weightLogs);
   const addGymSession = useWinterStore(s => s.addGymSession);
@@ -67,20 +68,22 @@ export const GymScreen: React.FC = () => {
 
   const handleSaveWeight = async () => {
     const val = parseFloat(bodyWeight);
-    if (!val) return;
-    await logWeight(val);
-    setBodyWeight('');
-    setWeightModalVisible(false);
+    if (!isNaN(val) && val > 0) {
+      await logWeight(val);
+      setBodyWeight('');
+      setWeightModalVisible(false);
+    }
   };
 
-  const latestWeight = weightLogs[0]?.kg || '--';
+  const latestWeight = weightLogs.length > 0 ? weightLogs[0].kg : 75.0;
+  const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.heading}>Iron Discipline (Gym)</Text>
-          <Text style={styles.subheading}>Compound lifts, muscle hypertrophy & scale weight</Text>
+          <Text style={styles.heading}>Iron Discipline</Text>
+          <Text style={styles.subheading}>Strength forge & physique tracking</Text>
         </View>
         <Button
           title="+ Log Workout"
@@ -90,14 +93,12 @@ export const GymScreen: React.FC = () => {
         />
       </View>
 
-      {/* Bodyweight Tracker Card */}
-      <Card elevated style={styles.weightCard}>
+      {/* Bodyweight Tracker */}
+      <Card style={styles.weightCard}>
         <View style={styles.weightRow}>
           <View>
-            <Text style={styles.weightLabel}>CURRENT BODY WEIGHT</Text>
-            <Text style={styles.weightVal}>
-              {latestWeight} <Text style={{ fontSize: 16, color: colors.textMuted }}>kg</Text>
-            </Text>
+            <Text style={styles.weightLabel}>CURRENT BODYWEIGHT</Text>
+            <Text style={styles.weightVal}>{latestWeight} kg</Text>
           </View>
           <Button
             title="Log Scale"
@@ -108,8 +109,8 @@ export const GymScreen: React.FC = () => {
         </View>
       </Card>
 
-      {/* Split Presets */}
-      <Text style={styles.sectionTitle}>Split Presets</Text>
+      {/* Workout Split Presets */}
+      <Text style={styles.sectionTitle}>WORKOUT PRESETS</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
         {SPLIT_PRESETS.map(split => (
           <TouchableOpacity
@@ -120,16 +121,16 @@ export const GymScreen: React.FC = () => {
               setModalVisible(true);
             }}
           >
-            <Text style={styles.splitText}>{split}</Text>
+            <Text style={styles.splitText}>{split} +</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       {/* Workout History */}
-      <Text style={styles.sectionTitle}>Workout History</Text>
+      <Text style={styles.sectionTitle}>RECENT GYM SESSIONS</Text>
       {gymSessions.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No gym workouts logged yet. Hit the weights and log your sets!</Text>
+          <Text style={styles.emptyText}>No workouts recorded yet. Hit the gym and log your sets!</Text>
         </Card>
       ) : (
         gymSessions.map(session => (
@@ -139,13 +140,13 @@ export const GymScreen: React.FC = () => {
               <Text style={styles.sessionXp}>+50 XP</Text>
             </View>
 
-            {session.exercises.map((ex, i) => (
-              <View key={i} style={styles.exerciseItem}>
-                <Text style={styles.exerciseName}>{ex.name}</Text>
+            {session.exercises.map((ex, idx) => (
+              <View key={idx} style={styles.exerciseItem}>
+                <Text style={styles.exerciseName}>🏋️ {ex.name}</Text>
                 <View style={styles.setRow}>
-                  {ex.sets.map((s, idx) => (
-                    <Text key={idx} style={styles.setTag}>
-                      {s.weight}kg × {s.reps}
+                  {ex.sets.map((s, sIdx) => (
+                    <Text key={sIdx} style={styles.setTag}>
+                      {s.weight > 0 ? `${s.weight}kg × ` : ''}{s.reps} reps
                     </Text>
                   ))}
                 </View>
@@ -164,34 +165,33 @@ export const GymScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Log Training: {workoutName}</Text>
+            <Text style={styles.modalTitle}>Log Gym Session</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Exercise (e.g. Barbell Bench Press, Squats)"
+              placeholder="Exercise name (e.g. Barbell Bench Press)"
               placeholderTextColor={colors.textMuted}
               value={exerciseName}
               onChangeText={setExerciseName}
             />
 
             <View style={styles.inputsRow}>
-              <View style={{ flex: 1, marginRight: 8 }}>
+              <View style={{ flex: 1, marginRight: spacing.sm }}>
                 <Text style={styles.fieldLabel}>WEIGHT (KG)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="60"
+                  placeholder="e.g. 80"
                   placeholderTextColor={colors.textMuted}
                   value={weight}
                   onChangeText={setWeight}
                   keyboardType="numeric"
                 />
               </View>
-
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
                 <Text style={styles.fieldLabel}>REPS</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="10"
+                  placeholder="e.g. 10"
                   placeholderTextColor={colors.textMuted}
                   value={reps}
                   onChangeText={setReps}
@@ -201,20 +201,20 @@ export const GymScreen: React.FC = () => {
             </View>
 
             <Button
-              title="+ Add Set to Exercise"
+              title="+ Add Set to Workout"
               onPress={handleAddSet}
               variant="secondary"
               size="sm"
               style={{ marginBottom: spacing.md }}
             />
 
-            {/* Current exercise list */}
+            {/* Current exercise summary */}
             {currentExercises.length > 0 && (
               <View style={styles.currentExBox}>
-                <Text style={styles.currentExTitle}>Added Exercises:</Text>
-                {currentExercises.map((e, idx) => (
-                  <Text key={idx} style={styles.currentExLine}>
-                    • {e.name}: {e.sets.length} sets logged
+                <Text style={styles.currentExTitle}>Logged This Session:</Text>
+                {currentExercises.map((e, i) => (
+                  <Text key={i} style={styles.currentExLine}>
+                    • {e.name}: {e.sets.length} sets
                   </Text>
                 ))}
               </View>
@@ -228,17 +228,17 @@ export const GymScreen: React.FC = () => {
                 style={{ flex: 1 }}
               />
               <Button
-                title="Save Workout"
-                variant="success"
+                title="Save Workout (+50 XP)"
+                variant="primary"
                 onPress={handleSaveWorkout}
-                style={{ flex: 1 }}
+                style={{ flex: 2 }}
               />
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Log Scale Modal */}
+      {/* Log Weight Modal */}
       <Modal
         visible={weightModalVisible}
         transparent
@@ -277,179 +277,180 @@ export const GymScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bgPrimary,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  subheading: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  weightCard: {
-    marginBottom: spacing.lg,
-  },
-  weightRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  weightLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  weightVal: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  splitPill: {
-    backgroundColor: colors.cardBg,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: borderRadius.full,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  splitText: {
-    color: colors.iceBlue,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyCard: {
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 13,
-  },
-  sessionCard: {
-    marginBottom: spacing.md,
-  },
-  sessionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sessionDate: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  sessionXp: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.mintSuccess,
-  },
-  exerciseItem: {
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  exerciseName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  setRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  setTag: {
-    fontSize: 11,
-    color: colors.iceBlue,
-    backgroundColor: colors.iceBlueSubtle,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderActive,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.iceBlue,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: colors.cardBg,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 14,
-    marginBottom: spacing.md,
-  },
-  inputsRow: {
-    flexDirection: 'row',
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textMuted,
-    marginBottom: 4,
-  },
-  currentExBox: {
-    backgroundColor: colors.cardBg,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-  },
-  currentExTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.iceBlue,
-    marginBottom: 4,
-  },
-  currentExLine: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-});
+const createStyles = (colors: any, spacing: any, borderRadius: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgPrimary,
+    },
+    content: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    heading: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    subheading: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    weightCard: {
+      marginBottom: spacing.lg,
+    },
+    weightRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    weightLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textMuted,
+      letterSpacing: 0.5,
+    },
+    weightVal: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      marginTop: 2,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+    },
+    splitPill: {
+      backgroundColor: colors.cardBg,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: borderRadius.full,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    splitText: {
+      color: colors.iceBlue,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    emptyCard: {
+      padding: spacing.xl,
+      alignItems: 'center',
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: 13,
+    },
+    sessionCard: {
+      marginBottom: spacing.md,
+    },
+    sessionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    sessionDate: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    sessionXp: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.mintSuccess,
+    },
+    exerciseItem: {
+      marginTop: 6,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    exerciseName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 4,
+    },
+    setRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    setTag: {
+      fontSize: 11,
+      color: colors.iceBlue,
+      backgroundColor: colors.iceBlueSubtle,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: borderRadius.xl,
+      padding: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      marginBottom: spacing.lg,
+    },
+    input: {
+      backgroundColor: colors.cardBg,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      fontSize: 14,
+      marginBottom: spacing.md,
+    },
+    inputsRow: {
+      flexDirection: 'row',
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textMuted,
+      marginBottom: 4,
+    },
+    currentExBox: {
+      backgroundColor: colors.cardBg,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+    },
+    currentExTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.iceBlue,
+      marginBottom: 4,
+    },
+    currentExLine: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+  });

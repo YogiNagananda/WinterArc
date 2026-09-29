@@ -14,10 +14,12 @@ import {
   Redemption,
   Profile,
   DayRecord,
+  FocusTimerState,
+  FocusSession,
 } from '../types';
-import { localDb, defaultProfile } from '../lib/storage';
+import { localDb, defaultProfile, defaultFocusTimer } from '../lib/storage';
 import { getSampleData } from '../lib/sampleData';
-import { syncWithSupabase } from '../lib/syncEngine';
+import { syncWithSupabase, deleteFromSupabase, pullFromSupabase } from '../lib/syncEngine';
 
 export type ScreenTab =
   | 'dashboard'
@@ -48,6 +50,7 @@ interface WinterState {
   rewards: Reward[];
   redemptions: Redemption[];
   dayRecords: DayRecord[];
+  focusTimer: FocusTimerState;
   isSyncing: boolean;
   syncMessage: string;
 
@@ -55,14 +58,24 @@ interface WinterState {
   initialize: () => Promise<void>;
   setActiveTab: (tab: ScreenTab) => void;
   toggleTaskCompletion: (taskId: string, date: string) => Promise<void>;
-  addTask: (task: Omit<Task, 'id' | 'createdAt'>) => Promise<void>;
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'archived'> & { archived?: boolean }) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   updateGoalProgress: (goalId: string, date: string, delta: number) => Promise<void>;
-  addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => Promise<void>;
+  addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'archived'> & { archived?: boolean }) => Promise<void>;
   deleteGoal: (goalId: string) => Promise<void>;
   saveNote: (note: Partial<Note> & { title: string; body: string }) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
+  
+  // Focus Timer actions
+  startFocusTimer: (targetMinutes?: number, taskId?: string) => Promise<void>;
+  pauseFocusTimer: () => Promise<void>;
+  resumeFocusTimer: () => Promise<void>;
+  stopFocusTimer: () => Promise<FocusSession | null>;
+  resetFocusTimer: () => Promise<void>;
+  setFocusTargetMinutes: (minutes: number) => Promise<void>;
+  setFocusSelectedTaskId: (taskId?: string) => void;
   logFocusSession: (minutes: number, taskId?: string, subjectId?: string) => Promise<void>;
+
   addGymSession: (exercises: GymSession['exercises']) => Promise<void>;
   logWeight: (kg: number) => Promise<void>;
   addStudySession: (subjectId: string, minutes: number) => Promise<void>;
@@ -92,6 +105,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   rewards: [],
   redemptions: [],
   dayRecords: [],
+  focusTimer: defaultFocusTimer,
   isSyncing: false,
   syncMessage: '',
 
@@ -104,28 +118,38 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     let weightLogs = await localDb.getWeightLogs();
     let studySubjects = await localDb.getStudySubjects();
     let rewards = await localDb.getRewards();
+    const focusTimer = await localDb.getFocusTimer();
 
-    // Load initial sample data if first time
+    // Check if cloud has data or if initial sample data needed
     if (!profile.sampleDataLoaded && tasks.length === 0) {
-      const sample = getSampleData();
-      tasks = sample.tasks;
-      goals = sample.goals;
-      notes = sample.notes;
-      gymSessions = sample.gymSessions;
-      weightLogs = sample.weightLogs;
-      studySubjects = sample.studySubjects;
-      rewards = sample.rewards;
+      // First attempt to pull from Supabase cloud
+      const pullResult = await pullFromSupabase();
+      tasks = await localDb.getTasks();
+      goals = await localDb.getGoals();
+      notes = await localDb.getNotes();
 
-      await localDb.saveTasks(tasks);
-      await localDb.saveGoals(goals);
-      await localDb.saveNotes(notes);
-      await localDb.saveGymSessions(gymSessions);
-      await localDb.saveWeightLogs(weightLogs);
-      await localDb.saveStudySubjects(studySubjects);
-      await localDb.saveRewards(rewards);
+      // If still empty, seed sample data
+      if (tasks.length === 0) {
+        const sample = getSampleData();
+        tasks = sample.tasks;
+        goals = sample.goals;
+        notes = sample.notes;
+        gymSessions = sample.gymSessions;
+        weightLogs = sample.weightLogs;
+        studySubjects = sample.studySubjects;
+        rewards = sample.rewards;
 
-      profile.sampleDataLoaded = true;
-      await localDb.saveProfile(profile);
+        await localDb.saveTasks(tasks);
+        await localDb.saveGoals(goals);
+        await localDb.saveNotes(notes);
+        await localDb.saveGymSessions(gymSessions);
+        await localDb.saveWeightLogs(weightLogs);
+        await localDb.saveStudySubjects(studySubjects);
+        await localDb.saveRewards(rewards);
+
+        profile.sampleDataLoaded = true;
+        await localDb.saveProfile(profile);
+      }
     }
 
     const completions = await localDb.getCompletions();
@@ -151,6 +175,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       rewards,
       redemptions,
       dayRecords,
+      focusTimer,
     });
 
     // Background sync with Supabase
@@ -171,6 +196,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       // Uncheck
       nextCompletions = completions.filter((_, i) => i !== existingIndex);
       xpDelta = -xpValue;
+      deleteFromSupabase('task_completions', 'task_id', taskId).catch(() => {});
     } else {
       // Complete
       nextCompletions = [
@@ -214,6 +240,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const nextTasks = get().tasks.filter(t => t.id !== taskId);
     await localDb.saveTasks(nextTasks);
     set({ tasks: nextTasks });
+    deleteFromSupabase('tasks', 'id', taskId).catch(() => {});
   },
 
   updateGoalProgress: async (goalId: string, date: string, delta: number) => {
@@ -265,6 +292,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const nextGoals = get().goals.filter(g => g.id !== goalId);
     await localDb.saveGoals(nextGoals);
     set({ goals: nextGoals });
+    deleteFromSupabase('goals', 'id', goalId).catch(() => {});
   },
 
   saveNote: async (noteInput) => {
@@ -307,6 +335,131 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const nextNotes = get().notes.filter(n => n.id !== noteId);
     await localDb.saveNotes(nextNotes);
     set({ notes: nextNotes });
+    deleteFromSupabase('notes', 'id', noteId).catch(() => {});
+  },
+
+  // ─── Persistent Focus Timer ─────────────────────────────────────────────
+  startFocusTimer: async (targetMinutes, taskId) => {
+    const timer = get().focusTimer;
+    const minutes = targetMinutes ?? timer.targetMinutes;
+    const updated: FocusTimerState = {
+      ...timer,
+      isRunning: true,
+      isPaused: false,
+      targetMinutes: minutes,
+      startedAt: Date.now(),
+      accumulatedMs: 0,
+      taskId: taskId !== undefined ? taskId : timer.taskId,
+    };
+    await localDb.saveFocusTimer(updated);
+    set({ focusTimer: updated });
+  },
+
+  pauseFocusTimer: async () => {
+    const timer = get().focusTimer;
+    if (!timer.isRunning || timer.isPaused || !timer.startedAt) return;
+    const elapsedSinceStart = Date.now() - timer.startedAt;
+    const updated: FocusTimerState = {
+      ...timer,
+      isPaused: true,
+      accumulatedMs: timer.accumulatedMs + elapsedSinceStart,
+      startedAt: null,
+    };
+    await localDb.saveFocusTimer(updated);
+    set({ focusTimer: updated });
+  },
+
+  resumeFocusTimer: async () => {
+    const timer = get().focusTimer;
+    if (!timer.isRunning || !timer.isPaused) return;
+    const updated: FocusTimerState = {
+      ...timer,
+      isPaused: false,
+      startedAt: Date.now(),
+    };
+    await localDb.saveFocusTimer(updated);
+    set({ focusTimer: updated });
+  },
+
+  resetFocusTimer: async () => {
+    const timer = get().focusTimer;
+    const updated: FocusTimerState = {
+      ...timer,
+      isRunning: false,
+      isPaused: false,
+      startedAt: null,
+      accumulatedMs: 0,
+    };
+    await localDb.saveFocusTimer(updated);
+    set({ focusTimer: updated });
+  },
+
+  setFocusTargetMinutes: async (minutes: number) => {
+    const timer = get().focusTimer;
+    if (timer.isRunning) return;
+    const updated: FocusTimerState = {
+      ...timer,
+      targetMinutes: minutes,
+      accumulatedMs: 0,
+      startedAt: null,
+    };
+    await localDb.saveFocusTimer(updated);
+    set({ focusTimer: updated });
+  },
+
+  setFocusSelectedTaskId: (taskId?: string) => {
+    set(state => ({ focusTimer: { ...state.focusTimer, taskId } }));
+  },
+
+  stopFocusTimer: async () => {
+    const timer = get().focusTimer;
+    if (!timer.isRunning) return null;
+
+    let totalMs = timer.accumulatedMs;
+    if (!timer.isPaused && timer.startedAt) {
+      totalMs += Date.now() - timer.startedAt;
+    }
+
+    const actualMinutes = Math.max(1, Math.round(totalMs / 60000));
+    const newSession: FocusSession = {
+      id: `foc-${Date.now()}`,
+      taskId: timer.taskId,
+      startedAt: new Date().toISOString(),
+      minutes: actualMinutes,
+    };
+
+    const updatedTimer: FocusTimerState = {
+      ...timer,
+      isRunning: false,
+      isPaused: false,
+      startedAt: null,
+      accumulatedMs: 0,
+      completedSessions: [actualMinutes, ...timer.completedSessions],
+    };
+
+    // Award XP
+    const xpEarned = Math.round(actualMinutes * 0.8);
+    const profile = get().profile;
+    const updatedProfile: Profile = {
+      ...profile,
+      totalXp: profile.totalXp + xpEarned,
+      spendableXp: profile.spendableXp + xpEarned,
+    };
+
+    const existingSessions = await localDb.getFocusSessions();
+    const nextSessions = [newSession, ...existingSessions];
+
+    await localDb.saveFocusSessions(nextSessions);
+    await localDb.saveFocusTimer(updatedTimer);
+    await localDb.saveProfile(updatedProfile);
+
+    set({
+      focusTimer: updatedTimer,
+      profile: updatedProfile,
+    });
+
+    syncWithSupabase().catch(() => {});
+    return newSession;
   },
 
   logFocusSession: async (minutes: number, taskId?: string, subjectId?: string) => {
@@ -317,7 +470,19 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       totalXp: profile.totalXp + xpEarned,
       spendableXp: profile.spendableXp + xpEarned,
     };
+
+    const newSession: FocusSession = {
+      id: `foc-${Date.now()}`,
+      taskId,
+      subjectId,
+      startedAt: new Date().toISOString(),
+      minutes,
+    };
+
+    const existingSessions = await localDb.getFocusSessions();
+    await localDb.saveFocusSessions([newSession, ...existingSessions]);
     await localDb.saveProfile(updatedProfile);
+
     set({ profile: updatedProfile });
     syncWithSupabase().catch(() => {});
   },
@@ -370,6 +535,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     await localDb.saveStudySessions(nextSessions);
     await localDb.saveProfile(updatedProfile);
     set({ studySessions: nextSessions, profile: updatedProfile });
+    syncWithSupabase().catch(() => {});
   },
 
   addSubject: async (name: string, weeklyTargetMin: number) => {
@@ -382,6 +548,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const nextSubjects = [...get().studySubjects, newSubject];
     await localDb.saveStudySubjects(nextSubjects);
     set({ studySubjects: nextSubjects });
+    syncWithSupabase().catch(() => {});
   },
 
   redeemReward: async (rewardId: string) => {
@@ -401,6 +568,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     await localDb.saveProfile(nextProfile);
     await localDb.saveRedemptions(nextRedemptions);
     set({ profile: nextProfile, redemptions: nextRedemptions });
+    syncWithSupabase().catch(() => {});
     return true;
   },
 
@@ -414,6 +582,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     const nextRewards = [...get().rewards, newReward];
     await localDb.saveRewards(nextRewards);
     set({ rewards: nextRewards });
+    syncWithSupabase().catch(() => {});
   },
 
   saveJournalEntry: async (text: string, mood: 1 | 2 | 3 | 4 | 5) => {
@@ -424,6 +593,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     ];
     await localDb.saveJournal(nextEntries);
     set({ journalEntries: nextEntries });
+    syncWithSupabase().catch(() => {});
   },
 
   triggerSync: async () => {
@@ -461,5 +631,6 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       weightLogs: sample.weightLogs,
       gymSessions: sample.gymSessions,
     });
+    syncWithSupabase().catch(() => {});
   },
 }));

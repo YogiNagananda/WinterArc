@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -8,7 +8,7 @@ import {
   TextStyle,
   StyleProp,
 } from 'react-native';
-import { colors, borderRadius, spacing } from '../theme/colors';
+import { useTheme } from '../theme/colors';
 
 interface ButtonProps {
   title: string;
@@ -33,6 +33,9 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
+  const { colors, borderRadius, spacing } = useTheme();
+  const styles = useMemo(() => createStyles(colors, borderRadius, spacing), [colors, borderRadius, spacing]);
+
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -104,73 +107,74 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: borderRadius.md,
-  },
-  baseText: {
-    fontWeight: '700',
-    fontSize: 14,
-    letterSpacing: 0.3,
-  },
-  primary: {
-    backgroundColor: colors.iceBlue,
-    shadowColor: colors.iceBlue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  textPrimary: {
-    color: colors.textOnIce,
-  },
-  secondary: {
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.borderActive,
-  },
-  textSecondary: {
-    color: colors.textPrimary,
-  },
-  success: {
-    backgroundColor: colors.mintSuccess,
-    shadowColor: colors.mintSuccess,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  textSuccess: {
-    color: '#082519',
-  },
-  danger: {
-    backgroundColor: colors.dangerCoral,
-  },
-  textDanger: {
-    color: '#ffffff',
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  textGhost: {
-    color: colors.iceBlue,
-  },
-  sizeSm: {
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-  },
-  sizeMd: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  sizeLg: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-});
+const createStyles = (colors: any, borderRadius: any, spacing: any) =>
+  StyleSheet.create({
+    base: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: borderRadius.md,
+    },
+    baseText: {
+      fontWeight: '700',
+      fontSize: 14,
+      letterSpacing: 0.3,
+    },
+    primary: {
+      backgroundColor: colors.iceBlue,
+      shadowColor: colors.iceBlue,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    textPrimary: {
+      color: colors.textOnIce,
+    },
+    secondary: {
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    textSecondary: {
+      color: colors.textPrimary,
+    },
+    success: {
+      backgroundColor: colors.mintSuccess,
+      shadowColor: colors.mintSuccess,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    textSuccess: {
+      color: '#ffffff',
+    },
+    danger: {
+      backgroundColor: colors.dangerCoral,
+    },
+    textDanger: {
+      color: '#ffffff',
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+    },
+    textGhost: {
+      color: colors.iceBlue,
+    },
+    sizeSm: {
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
+    },
+    sizeMd: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+    sizeLg: {
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.xl,
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+  });

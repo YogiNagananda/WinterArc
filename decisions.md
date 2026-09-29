@@ -109,4 +109,20 @@ Every time a meaningful change is made to the codebase, an entry is added detail
 - **What changed:** Built 5 shared components: `Card`, `Button`, `StatChip`, `Header`, `BottomTabs`. All screens consume these and build their own layout inline.
 - **Why this over a UI library:** Libraries like React Native Paper, NativeBase, or Tamagui impose their own design language. WinterArc has a specific icy navy design system (defined in `src/theme/colors.ts`) that doesn't exist in any pre-built library. Building our own gives us full design control with ~200 lines of component code.
 
+### 13. Persistent Focus Timer via Global Zustand Store & Timestamp Math
+- **What changed:** Moved focus timer state (`isRunning`, `isPaused`, `targetMinutes`, `startedAt`, `accumulatedMs`, `taskId`, `completedSessions`) from `FocusScreen` local `useState` into the global `useWinterStore` and `storage.ts`. Added a global background ticker in `App.tsx` and calculated remaining time using `targetMinutes * 60 - Math.floor((accumulatedMs + (Date.now() - startedAt)) / 1000)`.
+- **Why this approach:** In React Native without a stack navigator, conditionally rendering screens causes unmounting when tabs switch. Keeping timer state in local component state resets the countdown whenever the user checks another screen. Timestamp-based delta math ensures zero time loss even when unmounted or during app restarts.
+- **Why this over alternatives:** A background service / native headless task is complex to configure on Expo Go and requires native permissions. Timestamp-based delta math in global Zustand store achieves identical persistence with zero native bridge overhead and zero battery drain when inactive.
+
+### 14. Dynamic Dual Theme System (Icy Navy Dark & Icy Frost Light)
+- **What changed:** Created two complete design palettes in `colors.ts` (`darkColors` and `lightColors`), built the `useTheme()` hook connected to `useWinterStore(s => s.profile.theme)`, and converted components and screens to dynamically memoize styles via `useMemo(() => createStyles(colors, ...), [colors, ...])`.
+- **Why this approach:** React Native's `StyleSheet.create` statically evaluates styles on module load. Dynamic memoized style sheets allow instantaneous, re-render-free toggling between dark and light themes without requiring app reload.
+- **Why this over a heavy third-party theme library:** Preserves the custom WinterArc aesthetic (icy discipline navy and crisp icy frost) with zero bundle bloat and complete TypeScript type safety.
+
+### 15. Universal Safe Storage & Full 15-Table Supabase Dual Storage
+- **What changed:** Built `safeStorage` in `storage.ts` that safely falls back to `window.localStorage` on Web/Expo Web, `AsyncStorage` on native iOS/Android, and an in-memory cache to eliminate `[AsyncStorageError: Native module is null]`. Expanded `syncEngine.ts` to sync all 15 tables with Supabase (`profiles`, `tasks`, `task_completions`, `goals`, `goal_logs`, `notes`, `journal_entries`, `gym_sessions`, `body_weight_logs`, `study_subjects`, `study_sessions`, `rewards`, `redemptions`, `day_records`, `focus_sessions`), and added cloud pull and delete propagation.
+- **Why this approach:** Ensures data is never lost regardless of platform (web preview or mobile device). Gives true offline-first durability with real-time cloud synchronization.
+- **Why this over alternatives:** Pure cloud storage introduces network latency and fails offline. Pure local storage lacks cross-device backup. A write-through dual store gives sub-millisecond UI responsiveness with cloud durability.
+
 ---
+
