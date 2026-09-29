@@ -22,6 +22,9 @@ export const DashboardScreen: React.FC = () => {
   const toggleTaskCompletion = useWinterStore(s => s.toggleTaskCompletion);
   const updateGoalProgress = useWinterStore(s => s.updateGoalProgress);
   const setActiveTab = useWinterStore(s => s.setActiveTab);
+  const acceptChallenge = useWinterStore(s => s.acceptChallenge);
+  const fullDayClearedToast = useWinterStore(s => s.fullDayClearedToast);
+  const clearFullDayToast = useWinterStore(s => s.clearFullDayToast);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -43,6 +46,68 @@ export const DashboardScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Full Day / Goal Completion Celebration Toast */}
+      {fullDayClearedToast ? (
+        <View style={styles.celebrationToast}>
+          <View style={styles.celebrationHeaderRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.celebrationIcon}>🏆</Text>
+              <Text style={styles.celebrationTitle}>DISCIPLINE REWARD UNLOCKED</Text>
+            </View>
+            <TouchableOpacity onPress={clearFullDayToast} style={styles.toastCloseBtn}>
+              <Text style={styles.toastCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.celebrationMsg}>{fullDayClearedToast}</Text>
+          <Text style={styles.celebrationHint}>
+            Guilt-free entertainment unlocked! Shop your reward points for video games 🎮, movies 🎬, or TV series 🍿.
+          </Text>
+          <View style={styles.celebrationBtnRow}>
+            <Button
+              title="🎁 Go to Rewards Shop"
+              size="sm"
+              variant="primary"
+              onPress={() => {
+                clearFullDayToast();
+                setActiveTab('rewards');
+              }}
+            />
+            <Button
+              title="Dismiss"
+              size="sm"
+              variant="ghost"
+              onPress={clearFullDayToast}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {/* Initiation Card (Shown if challenge not yet accepted) */}
+      {!profile.challengeAccepted && (
+        <Card elevated style={styles.initiationCard}>
+          <View style={styles.initiationHeader}>
+            <Text style={styles.initiationBadge}>⚔️ ARC INITIATION</Text>
+            <Text style={styles.initiationXp}>+100 XP BONUS</Text>
+          </View>
+          <Text style={styles.initiationTitle}>Join the Winter Arc Challenge</Text>
+          <Text style={styles.initiationDesc}>
+            Commit to 90 days of unapologetic discipline, heavy lifting, razor focus, and mental toughness.
+          </Text>
+          <View style={styles.initiationPerks}>
+            <Text style={styles.initiationPerk}>🔥 Shifts Day Streak from 0 to 1</Text>
+            <Text style={styles.initiationPerk}>💎 Awards +100 Spendable & Total XP</Text>
+            <Text style={styles.initiationPerk}>🎖️ Unlocks "Pledge of Iron" & "First Step" Badges</Text>
+          </View>
+          <Button
+            title="⚔️ ACCEPT THE CHALLENGE (+100 XP)"
+            onPress={acceptChallenge}
+            variant="primary"
+            size="lg"
+            style={styles.initiationBtn}
+          />
+        </Card>
+      )}
+
       {/* 90-Day Arc Progress Banner */}
       <Card elevated style={styles.arcBanner}>
         <View style={styles.arcHeaderRow}>
@@ -66,7 +131,7 @@ export const DashboardScreen: React.FC = () => {
         <View style={styles.statChipsRow}>
           <StatChip label="Streak" value={`${profile.streak}d`} icon="🔥" color="amber" />
           <StatChip label="Total XP" value={profile.totalXp} icon="⚡" color="ice" />
-          <StatChip label="Freezes" value={profile.freezesLeft} icon="🛡️" color="neutral" />
+          <StatChip label="Vault XP" value={profile.spendableXp} icon="💎" color="ice" />
           <StatChip label="Tasks" value={`${completedCount}/${todayTasks.length}`} icon="✅" color="mint" />
         </View>
       </Card>
@@ -200,6 +265,101 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
     content: {
       padding: spacing.lg,
       paddingBottom: 40,
+    },
+    celebrationToast: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+      borderWidth: 1.5,
+      borderColor: colors.mintSuccess,
+    },
+    celebrationHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    celebrationIcon: {
+      fontSize: 16,
+      marginRight: 6,
+    },
+    celebrationTitle: {
+      fontSize: 12,
+      fontWeight: '900',
+      color: colors.mintSuccess,
+      letterSpacing: 0.5,
+    },
+    toastCloseBtn: {
+      padding: 4,
+    },
+    toastCloseText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontWeight: '800',
+    },
+    celebrationMsg: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    celebrationHint: {
+      fontSize: 11,
+      color: colors.textMuted,
+      lineHeight: 16,
+      marginBottom: spacing.sm,
+    },
+    celebrationBtnRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    initiationCard: {
+      marginBottom: spacing.lg,
+      borderWidth: 1.5,
+      borderColor: colors.iceBlue,
+      backgroundColor: colors.cardElevated,
+    },
+    initiationHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    initiationBadge: {
+      fontSize: 11,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      letterSpacing: 1,
+    },
+    initiationXp: {
+      fontSize: 11,
+      fontWeight: '900',
+      color: colors.mintSuccess,
+    },
+    initiationTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    initiationDesc: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+      marginBottom: spacing.md,
+    },
+    initiationPerks: {
+      gap: 4,
+      marginBottom: spacing.md,
+    },
+    initiationPerk: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    initiationBtn: {
+      width: '100%',
     },
     arcBanner: {
       marginBottom: spacing.lg,

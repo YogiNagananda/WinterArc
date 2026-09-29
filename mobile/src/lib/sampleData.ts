@@ -130,9 +130,13 @@ export function getSampleData() {
   ];
 
   const rewards: Reward[] = [
-    { id: 'rew-1', title: 'Cheat Meal / Favorite Burger', cost: 150, archived: false },
-    { id: 'rew-2', title: '2 Hours Video Gaming Session', cost: 200, archived: false },
-    { id: 'rew-3', title: 'Buy New Workout Apparel', cost: 500, archived: false },
+    { id: 'rew-1', title: '🎮 1 Hour Video Game Session', cost: 100, archived: false },
+    { id: 'rew-2', title: '🎬 Full Movie Night with Popcorn', cost: 150, archived: false },
+    { id: 'rew-3', title: '🍿 2 Episodes of TV Series', cost: 120, archived: false },
+    { id: 'rew-4', title: '🍕 Cheat Meal of Choice', cost: 250, archived: false },
+    { id: 'rew-5', title: '☕ Specialty Coffee / Boba Break', cost: 80, archived: false },
+    { id: 'rew-6', title: '😴 Sleep In 1 Extra Hour', cost: 200, archived: false },
+    { id: 'rew-7', title: '👕 New Workout Gear / Apparel', cost: 500, archived: false },
   ];
 
   const weightLogs: BodyWeightLog[] = [

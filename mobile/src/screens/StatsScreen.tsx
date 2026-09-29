@@ -21,7 +21,8 @@ function generateHeatmapDates(count: number): string[] {
 }
 
 const BADGES = [
-  { id: 'first_day', title: 'First Step', desc: 'Complete Day 1 of the arc', icon: '🌱', condition: 'streak_1' },
+  { id: 'pledge_iron', title: 'Pledge of Iron', desc: 'Accept the Winter Arc Challenge', icon: '❄️', condition: 'pledged' },
+  { id: 'first_day', title: 'First Step', desc: 'Step onto the path (Streak 1)', icon: '🌱', condition: 'streak_1' },
   { id: 'streak_7', title: 'One Week Iron', desc: '7-day unbroken streak', icon: '🔥', condition: 'streak_7' },
   { id: 'streak_30', title: 'Month of Discipline', desc: '30-day streak', icon: '⚡', condition: 'streak_30' },
   { id: 'streak_90', title: 'WINTER ARC COMPLETE', desc: '90-day arc completed', icon: '🏆', condition: 'streak_90' },
@@ -43,6 +44,7 @@ export const StatsScreen: React.FC = () => {
 
   // Compute badge unlock states
   const badgeStates: Record<string, boolean> = {
+    pledged: profile.challengeAccepted || profile.streak >= 1,
     streak_1: profile.streak >= 1,
     streak_7: profile.bestStreak >= 7,
     streak_30: profile.bestStreak >= 30,

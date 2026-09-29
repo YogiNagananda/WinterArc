@@ -16,6 +16,7 @@ import {
   DayRecord,
   FocusTimerState,
   FocusSession,
+  GymPhoto,
 } from '../types';
 
 // In-memory fallback cache in case native module or web storage is temporarily unavailable
@@ -84,6 +85,7 @@ const STORAGE_KEYS = {
   DAY_RECORDS: '@winterarc_day_records',
   FOCUS_TIMER: '@winterarc_focus_timer',
   FOCUS_SESSIONS: '@winterarc_focus_sessions',
+  GYM_PHOTOS: '@winterarc_gym_photos',
 };
 
 async function getItem<T>(key: string, defaultValue: T): Promise<T> {
@@ -105,16 +107,17 @@ export const defaultProfile: Profile = {
   startDate: new Date().toISOString().split('T')[0],
   arcLength: 90,
   rolloverHour: 4,
-  totalXp: 120,
-  spendableXp: 80,
-  streak: 5,
-  bestStreak: 7,
+  totalXp: 0,
+  spendableXp: 0,
+  streak: 0,
+  bestStreak: 0,
   freezesLeft: 2,
   freezeResetWeek: '',
   theme: 'dark',
   soundEnabled: true,
   notificationsEnabled: true,
   sampleDataLoaded: false,
+  challengeAccepted: false,
 };
 
 export const defaultFocusTimer: FocusTimerState = {
@@ -148,6 +151,9 @@ export const localDb = {
 
   getGymSessions: () => getItem<GymSession[]>(STORAGE_KEYS.GYM_SESSIONS, []),
   saveGymSessions: (sessions: GymSession[]) => setItem(STORAGE_KEYS.GYM_SESSIONS, sessions),
+
+  getGymPhotos: () => getItem<GymPhoto[]>(STORAGE_KEYS.GYM_PHOTOS, []),
+  saveGymPhotos: (photos: GymPhoto[]) => setItem(STORAGE_KEYS.GYM_PHOTOS, photos),
 
   getWeightLogs: () => getItem<BodyWeightLog[]>(STORAGE_KEYS.WEIGHT_LOGS, []),
   saveWeightLogs: (logs: BodyWeightLog[]) => setItem(STORAGE_KEYS.WEIGHT_LOGS, logs),

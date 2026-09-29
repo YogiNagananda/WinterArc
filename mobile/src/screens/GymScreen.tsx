@@ -7,20 +7,27 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Image,
+  Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../theme/colors';
 import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { GymExercise } from '../types';
+import { GymExercise, GymPhoto } from '../types';
 
 const SPLIT_PRESETS = ['Push Day', 'Pull Day', 'Legs', 'Upper Body', 'Full Body'];
 
 export const GymScreen: React.FC = () => {
   const { colors, spacing, borderRadius } = useTheme();
+  const profile = useWinterStore(s => s.profile);
   const gymSessions = useWinterStore(s => s.gymSessions);
+  const gymPhotos = useWinterStore(s => s.gymPhotos);
   const weightLogs = useWinterStore(s => s.weightLogs);
   const addGymSession = useWinterStore(s => s.addGymSession);
+  const addGymPhoto = useWinterStore(s => s.addGymPhoto);
+  const deleteGymPhoto = useWinterStore(s => s.deleteGymPhoto);
   const logWeight = useWinterStore(s => s.logWeight);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -34,13 +41,25 @@ export const GymScreen: React.FC = () => {
   const [weight, setWeight] = useState('60');
   const [currentExercises, setCurrentExercises] = useState<GymExercise[]>([]);
 
+  // Transformation Photo state
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [photoCaption, setPhotoCaption] = useState('');
+  const [viewingPhoto, setViewingPhoto] = useState<GymPhoto | null>(null);
+
+  // Compute Arc Day
+  const start = new Date(profile.startDate).getTime();
+  const now = new Date().getTime();
+  const currentArcDay = Math.max(1, Math.min(profile.arcLength, Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1));
+  const latestWeight = weightLogs.length > 0 ? weightLogs[0].kg : 75.0;
+
   const handleAddSet = () => {
-    if (!exerciseName.trim()) return;
+    const targetName = exerciseName.trim() || workoutName || 'Exercise';
     const r = parseInt(reps) || 10;
     const w = parseFloat(weight) || 0;
 
     const existingIndex = currentExercises.findIndex(
-      e => e.name.toLowerCase() === exerciseName.trim().toLowerCase()
+      e => e.name.toLowerCase() === targetName.toLowerCase()
     );
 
     if (existingIndex >= 0) {
@@ -51,16 +70,44 @@ export const GymScreen: React.FC = () => {
       setCurrentExercises([
         ...currentExercises,
         {
-          name: exerciseName.trim(),
+          name: targetName,
           sets: [{ reps: r, weight: w }],
         },
       ]);
     }
+    setExerciseName('');
   };
 
+  // Single-click workout save: auto-bundles whatever is typed into the inputs without requiring "+ Add Set" first
   const handleSaveWorkout = async () => {
-    if (currentExercises.length === 0) return;
-    await addGymSession(currentExercises);
+    let exercisesToSave = [...currentExercises];
+    const nameToUse = exerciseName.trim() || (exercisesToSave.length === 0 ? workoutName || 'General Workout' : '');
+
+    if (nameToUse) {
+      const r = parseInt(reps) || 10;
+      const w = parseFloat(weight) || 0;
+      const existingIndex = exercisesToSave.findIndex(
+        e => e.name.toLowerCase() === nameToUse.toLowerCase()
+      );
+
+      if (existingIndex >= 0) {
+        exercisesToSave[existingIndex].sets.push({ reps: r, weight: w });
+      } else {
+        exercisesToSave.push({
+          name: nameToUse,
+          sets: [{ reps: r, weight: w }],
+        });
+      }
+    }
+
+    if (exercisesToSave.length === 0) {
+      exercisesToSave = [{
+        name: workoutName || 'Winter Arc Workout',
+        sets: [{ reps: 10, weight: 0 }],
+      }];
+    }
+
+    await addGymSession(exercisesToSave);
     setCurrentExercises([]);
     setExerciseName('');
     setModalVisible(false);
@@ -75,7 +122,75 @@ export const GymScreen: React.FC = () => {
     }
   };
 
-  const latestWeight = weightLogs.length > 0 ? weightLogs[0].kg : 75.0;
+  // Camera capture
+  const handleCaptureCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Denied', 'Camera access is required to snap your transformation photo.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 5],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        setSelectedPhotoUri(result.assets[0].uri);
+        setPhotoModalVisible(true);
+      }
+    } catch (err) {
+      console.warn('Camera error:', err);
+    }
+  };
+
+  // Gallery picker
+  const handlePickFromGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Denied', 'Photo library access is required to select a transformation photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 5],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        setSelectedPhotoUri(result.assets[0].uri);
+        setPhotoModalVisible(true);
+      }
+    } catch (err) {
+      console.warn('Gallery picker error:', err);
+    }
+  };
+
+  // Save transformation photo
+  const handleSavePhoto = async () => {
+    if (!selectedPhotoUri) return;
+    const today = new Date().toISOString().split('T')[0];
+    await addGymPhoto({
+      date: today,
+      arcDay: currentArcDay,
+      uri: selectedPhotoUri,
+      caption: photoCaption.trim() || undefined,
+      weightKg: latestWeight,
+    });
+    setSelectedPhotoUri(null);
+    setPhotoCaption('');
+    setPhotoModalVisible(false);
+  };
+
+  const handleDeletePhoto = async (id: string) => {
+    await deleteGymPhoto(id);
+    if (viewingPhoto?.id === id) {
+      setViewingPhoto(null);
+    }
+  };
+
   const styles = useMemo(() => createStyles(colors, spacing, borderRadius), [colors, spacing, borderRadius]);
 
   return (
@@ -109,8 +224,79 @@ export const GymScreen: React.FC = () => {
         </View>
       </Card>
 
+      {/* PIC OF THE DAY / TRANSFORMATION REEL */}
+      <View style={styles.sectionHeaderRow}>
+        <View>
+          <Text style={styles.sectionTitle}>📸 TRANSFORMATION REEL</Text>
+          <Text style={styles.sectionSubtitle}>Pic of the day • Day {currentArcDay} of 90</Text>
+        </View>
+        <View style={styles.photoActionRow}>
+          <TouchableOpacity style={styles.photoActionBtn} onPress={handleCaptureCamera}>
+            <Text style={styles.photoActionIcon}>📷</Text>
+            <Text style={styles.photoActionText}>Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.photoActionBtn} onPress={handlePickFromGallery}>
+            <Text style={styles.photoActionIcon}>🖼️</Text>
+            <Text style={styles.photoActionText}>Gallery</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {gymPhotos.length === 0 ? (
+        <Card style={styles.emptyPhotoCard}>
+          <Text style={styles.emptyPhotoIcon}>📸</Text>
+          <Text style={styles.emptyPhotoTitle}>No Transformation Photos Yet</Text>
+          <Text style={styles.emptyPhotoText}>
+            Snap your Day {currentArcDay} baseline photo to witness your 90-day physical evolution.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+            <Button
+              title="📷 Snap Today's Pic"
+              onPress={handleCaptureCamera}
+              size="sm"
+              variant="primary"
+            />
+            <Button
+              title="🖼️ Upload Photo"
+              onPress={handlePickFromGallery}
+              size="sm"
+              variant="secondary"
+            />
+          </View>
+        </Card>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.photoScroll}
+          contentContainerStyle={styles.photoScrollContent}
+        >
+          {gymPhotos.map(photo => (
+            <TouchableOpacity
+              key={photo.id}
+              style={styles.photoThumbCard}
+              onPress={() => setViewingPhoto(photo)}
+              activeOpacity={0.8}
+            >
+              <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+              <View style={styles.photoOverlayBadge}>
+                <Text style={styles.photoDayText}>DAY {photo.arcDay}</Text>
+              </View>
+              {photo.weightKg && (
+                <View style={styles.photoWeightBadge}>
+                  <Text style={styles.photoWeightText}>{photo.weightKg} kg</Text>
+                </View>
+              )}
+              <View style={styles.photoDateBar}>
+                <Text style={styles.photoDateText}>{photo.date}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Workout Split Presets */}
-      <Text style={styles.sectionTitle}>WORKOUT PRESETS</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>WORKOUT PRESETS</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
         {SPLIT_PRESETS.map(split => (
           <TouchableOpacity
@@ -118,6 +304,7 @@ export const GymScreen: React.FC = () => {
             style={styles.splitPill}
             onPress={() => {
               setWorkoutName(split);
+              setExerciseName(split);
               setModalVisible(true);
             }}
           >
@@ -156,7 +343,7 @@ export const GymScreen: React.FC = () => {
         ))
       )}
 
-      {/* Log Workout Modal */}
+      {/* 1-Click Workout Logging Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -166,6 +353,9 @@ export const GymScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Log Gym Session</Text>
+            <Text style={styles.modalSub}>
+              Enter your exercise and click <Text style={{ color: colors.mintSuccess, fontWeight: '700' }}>Save Workout</Text> once to record it immediately (+50 XP).
+            </Text>
 
             <TextInput
               style={styles.input}
@@ -201,7 +391,7 @@ export const GymScreen: React.FC = () => {
             </View>
 
             <Button
-              title="+ Add Set to Workout"
+              title="+ Add Another Set"
               onPress={handleAddSet}
               variant="secondary"
               size="sm"
@@ -211,7 +401,7 @@ export const GymScreen: React.FC = () => {
             {/* Current exercise summary */}
             {currentExercises.length > 0 && (
               <View style={styles.currentExBox}>
-                <Text style={styles.currentExTitle}>Logged This Session:</Text>
+                <Text style={styles.currentExTitle}>Logged Sets This Session:</Text>
                 {currentExercises.map((e, i) => (
                   <Text key={i} style={styles.currentExLine}>
                     • {e.name}: {e.sets.length} sets
@@ -234,6 +424,94 @@ export const GymScreen: React.FC = () => {
                 style={{ flex: 2 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Photo Preview & Caption Save Modal */}
+      <Modal
+        visible={photoModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPhotoModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Save Pic of the Day</Text>
+            <Text style={styles.modalSub}>Day {currentArcDay} Transformation Photo</Text>
+
+            {selectedPhotoUri && (
+              <Image source={{ uri: selectedPhotoUri }} style={styles.modalPhotoPreview} />
+            )}
+
+            <TextInput
+              style={styles.input}
+              placeholder="Caption (e.g. Chest pump baseline, feeling strong)"
+              placeholderTextColor={colors.textMuted}
+              value={photoCaption}
+              onChangeText={setPhotoCaption}
+            />
+
+            <View style={styles.modalButtons}>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={() => {
+                  setSelectedPhotoUri(null);
+                  setPhotoModalVisible(false);
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Save Photo (+15 XP)"
+                variant="primary"
+                onPress={handleSavePhoto}
+                style={{ flex: 2 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Full Photo Inspection Modal */}
+      <Modal
+        visible={!!viewingPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewingPhoto(null)}
+      >
+        <View style={styles.fullPhotoOverlay}>
+          <View style={styles.fullPhotoHeader}>
+            <View>
+              <Text style={styles.fullPhotoDay}>DAY {viewingPhoto?.arcDay} • {viewingPhoto?.date}</Text>
+              {viewingPhoto?.weightKg && (
+                <Text style={styles.fullPhotoWeight}>Weight: {viewingPhoto.weightKg} kg</Text>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => setViewingPhoto(null)} style={styles.closeBtn}>
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {viewingPhoto && (
+            <Image
+              source={{ uri: viewingPhoto.uri }}
+              style={styles.fullPhotoImage}
+              resizeMode="contain"
+            />
+          )}
+
+          {viewingPhoto?.caption ? (
+            <Text style={styles.fullPhotoCaption}>{viewingPhoto.caption}</Text>
+          ) : null}
+
+          <View style={styles.fullPhotoActions}>
+            <Button
+              title="Delete Photo"
+              variant="danger"
+              size="sm"
+              onPress={() => viewingPhoto && handleDeletePhoto(viewingPhoto.id)}
+            />
           </View>
         </View>
       </Modal>
@@ -323,11 +601,191 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       color: colors.iceBlue,
       marginTop: 2,
     },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
     sectionTitle: {
       fontSize: 14,
       fontWeight: '800',
       color: colors.textPrimary,
-      marginBottom: spacing.sm,
+      marginBottom: 2,
+    },
+    sectionSubtitle: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    photoActionRow: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    photoActionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.borderActive,
+    },
+    photoActionIcon: {
+      fontSize: 12,
+    },
+    photoActionText: {
+      fontSize: 11,
+      color: colors.iceBlue,
+      fontWeight: '700',
+    },
+    emptyPhotoCard: {
+      alignItems: 'center',
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      borderStyle: 'dashed',
+      borderWidth: 1.5,
+      borderColor: colors.borderActive,
+    },
+    emptyPhotoIcon: {
+      fontSize: 28,
+      marginBottom: 6,
+    },
+    emptyPhotoTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.iceBlue,
+      marginBottom: 4,
+    },
+    emptyPhotoText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 16,
+    },
+    photoScroll: {
+      marginBottom: spacing.md,
+    },
+    photoScrollContent: {
+      gap: 10,
+      paddingVertical: 4,
+    },
+    photoThumbCard: {
+      width: 120,
+      height: 160,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+      borderWidth: 1.5,
+      borderColor: colors.borderActive,
+      backgroundColor: colors.cardBg,
+      position: 'relative',
+    },
+    photoImage: {
+      width: '100%',
+      height: '100%',
+    },
+    photoOverlayBadge: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      backgroundColor: 'rgba(5, 15, 30, 0.85)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: colors.iceBlue,
+    },
+    photoDayText: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      letterSpacing: 0.5,
+    },
+    photoWeightBadge: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      backgroundColor: 'rgba(0, 217, 127, 0.85)',
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    photoWeightText: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: '#041f12',
+    },
+    photoDateBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      paddingVertical: 4,
+      alignItems: 'center',
+    },
+    photoDateText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    modalPhotoPreview: {
+      width: '100%',
+      height: 200,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+      resizeMode: 'cover',
+    },
+    fullPhotoOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.95)',
+      padding: spacing.lg,
+      justifyContent: 'space-between',
+    },
+    fullPhotoHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 30,
+    },
+    fullPhotoDay: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.iceBlue,
+    },
+    fullPhotoWeight: {
+      fontSize: 12,
+      color: colors.mintSuccess,
+      fontWeight: '700',
+      marginTop: 2,
+    },
+    closeBtn: {
+      padding: 8,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      borderRadius: 20,
+    },
+    closeBtnText: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: '800',
+    },
+    fullPhotoImage: {
+      width: '100%',
+      flex: 1,
+      marginVertical: spacing.md,
+    },
+    fullPhotoCaption: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: spacing.md,
+      fontStyle: 'italic',
+    },
+    fullPhotoActions: {
+      paddingBottom: 20,
+      alignItems: 'center',
     },
     splitPill: {
       backgroundColor: colors.cardBg,
@@ -412,7 +870,13 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       fontSize: 18,
       fontWeight: '900',
       color: colors.iceBlue,
-      marginBottom: spacing.lg,
+      marginBottom: 4,
+    },
+    modalSub: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginBottom: spacing.md,
+      lineHeight: 16,
     },
     input: {
       backgroundColor: colors.cardBg,

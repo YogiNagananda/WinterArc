@@ -124,5 +124,22 @@ Every time a meaningful change is made to the codebase, an entry is added detail
 - **Why this approach:** Ensures data is never lost regardless of platform (web preview or mobile device). Gives true offline-first durability with real-time cloud synchronization.
 - **Why this over alternatives:** Pure cloud storage introduces network latency and fails offline. Pure local storage lacks cross-device backup. A write-through dual store gives sub-millisecond UI responsiveness with cloud durability.
 
----
+### 16. Single-Click Workout Logger & Auto-Set Bundling
+- **What changed:** In `GymScreen.tsx`, updated `handleSaveWorkout` to automatically bundle whatever exercise name, weight, and reps are typed into the inputs directly into the session save payload, even if "+ Add Set to Workout" was never tapped. If fields are blank, it gracefully falls back to the split preset name (e.g. "Push Day").
+- **Why this approach:** Eliminates user frustration and silent save failures when logging workouts on a single click.
+- **Why this over alternatives:** Requiring a strict two-step sequence ("Add Set" then "Save Workout") violates mobile usability expectations and caused workouts to be lost when users tapped "Save Workout" directly. Auto-bundling guarantees 100% single-click save reliability.
 
+### 17. Pic of the Day Transformation Reel with Expo Image Picker
+- **What changed:** Integrated `expo-image-picker` with camera capture (`launchCameraAsync`) and photo library selection (`launchImageLibraryAsync`). Added the `GymPhoto` data structure with `arcDay`, `weightKg`, `date`, `caption`, and local URI storage. Built a horizontal transformation reel carousel in `GymScreen` featuring Day and Weight badges, date stamps, photo captions, full-screen inspection modal, and delete options.
+- **Why this approach:** Visual physique proof is the core motivator of the 90-day Winter Arc challenge. Tracking day-by-day photos allows users to directly observe their physical hardening and fat loss over time.
+- **Why `expo-image-picker` over alternatives:** Works seamlessly across iOS, Android, and Web with built-in aspect ratio cropping (4:5 portrait physique ratio), quality compression, and zero native configuration overhead in Expo Go.
+
+### 18. Winter Arc Challenge Initiation, Streak Transition (0 ➔ 1) & Badges
+- **What changed:** New user profiles initialize with `streak: 0`, `totalXp: 0`, `challengeAccepted: false`. Created an epic "Accept the Winter Arc Challenge" initiation hero card on `DashboardScreen`. Tapping "⚔️ ACCEPT THE CHALLENGE" shifts streak from 0 to 1, awards +100 Initiation Total XP and +100 Spendable XP, unlocks the "First Step" (🌱) and "Pledge of Iron" (❄️) badges, and plays a deep resonant warrior initiation gong.
+- **Why this approach:** Starting at Day 0 creates intentional ceremony and psychological commitment. Shifting to Day 1 upon accepting the challenge makes Day 1 feel earned and initiates the discipline streak with tangible momentum.
+
+### 19. Guilt-Free Entertainment Rewards & Hard Focus Timer Completion Alert
+- **What changed:** Added entertainment rewards to the Discipline Shop: 1 Hour Video Game Session (100 XP), Full Movie Night (150 XP), 2 Episodes of TV Series (120 XP), and Cheat Meal (250 XP). Configured 100% daily task clearance and book reading goal completions to award +100 bonus spendable XP and show celebratory reward banners with direct links to the shop. Engineered a commanding "hard" audio completion alarm in `soundPlayer.ts` using dual synthesized sawtooth/square oscillators (880Hz-1320Hz piercing lead + 110Hz sub-bass punch) accompanied by heavy 600ms multi-pulse vibration patterns.
+- **Why this approach:** Aligns with the core Winter Arc philosophy: entertainment (gaming, movies, series) is never banned, but must be earned through non-negotiables and reading habits. The aggressive completion siren cuts through ambient noise to alert the user the moment their focus chamber concludes.
+
+---

@@ -71,6 +71,14 @@ export const RewardsScreen: React.FC = () => {
         </Text>
       </Card>
 
+      {/* Guilt-Free Entertainment Philosophy Tip */}
+      <Card style={styles.philosophyCard}>
+        <Text style={styles.philosophyTitle}>🎮 GUILT-FREE ENTERTAINMENT</Text>
+        <Text style={styles.philosophyText}>
+          Crushed your reading goal or cleared 100% of today's non-negotiables? Spend your earned XP on video games, movie nights, or TV series bingeing with zero regret. You earned every second.
+        </Text>
+      </Card>
+
       {/* Rewards Catalog */}
       <View style={styles.headerRow}>
         <Text style={styles.heading}>Discipline Shop</Text>
@@ -220,6 +228,24 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       fontSize: 12,
       color: colors.textSecondary,
       lineHeight: 16,
+    },
+    philosophyCard: {
+      marginBottom: spacing.lg,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.iceBlue,
+      backgroundColor: colors.cardElevated,
+    },
+    philosophyTitle: {
+      fontSize: 11,
+      fontWeight: '900',
+      color: colors.iceBlue,
+      letterSpacing: 1,
+      marginBottom: 4,
+    },
+    philosophyText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 17,
     },
     headerRow: {
       flexDirection: 'row',

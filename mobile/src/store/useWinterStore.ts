@@ -16,10 +16,12 @@ import {
   DayRecord,
   FocusTimerState,
   FocusSession,
+  GymPhoto,
 } from '../types';
 import { localDb, defaultProfile, defaultFocusTimer } from '../lib/storage';
 import { getSampleData } from '../lib/sampleData';
 import { syncWithSupabase, deleteFromSupabase, pullFromSupabase } from '../lib/syncEngine';
+import { playHardCompletionSound, playCelebrationSound, playInitiationGong } from '../lib/soundPlayer';
 
 export type ScreenTab =
   | 'dashboard'
@@ -44,6 +46,7 @@ interface WinterState {
   notes: Note[];
   journalEntries: JournalEntry[];
   gymSessions: GymSession[];
+  gymPhotos: GymPhoto[];
   weightLogs: BodyWeightLog[];
   studySubjects: StudySubject[];
   studySessions: StudySession[];
@@ -53,10 +56,13 @@ interface WinterState {
   focusTimer: FocusTimerState;
   isSyncing: boolean;
   syncMessage: string;
+  fullDayClearedToast: string;
 
   // Actions
   initialize: () => Promise<void>;
   setActiveTab: (tab: ScreenTab) => void;
+  acceptChallenge: () => Promise<void>;
+  clearFullDayToast: () => void;
   toggleTaskCompletion: (taskId: string, date: string) => Promise<void>;
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'archived'> & { archived?: boolean }) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
@@ -77,6 +83,8 @@ interface WinterState {
   logFocusSession: (minutes: number, taskId?: string, subjectId?: string) => Promise<void>;
 
   addGymSession: (exercises: GymSession['exercises']) => Promise<void>;
+  addGymPhoto: (photo: Omit<GymPhoto, 'id' | 'createdAt'>) => Promise<void>;
+  deleteGymPhoto: (photoId: string) => Promise<void>;
   logWeight: (kg: number) => Promise<void>;
   addStudySession: (subjectId: string, minutes: number) => Promise<void>;
   addSubject: (name: string, weeklyTargetMin: number) => Promise<void>;
@@ -99,6 +107,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   notes: [],
   journalEntries: [],
   gymSessions: [],
+  gymPhotos: [],
   weightLogs: [],
   studySubjects: [],
   studySessions: [],
@@ -108,6 +117,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
   focusTimer: defaultFocusTimer,
   isSyncing: false,
   syncMessage: '',
+  fullDayClearedToast: '',
 
   initialize: async () => {
     const profile = await localDb.getProfile();
@@ -115,6 +125,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     let goals = await localDb.getGoals();
     let notes = await localDb.getNotes();
     let gymSessions = await localDb.getGymSessions();
+    let gymPhotos = await localDb.getGymPhotos();
     let weightLogs = await localDb.getWeightLogs();
     let studySubjects = await localDb.getStudySubjects();
     let rewards = await localDb.getRewards();
@@ -122,13 +133,11 @@ export const useWinterStore = create<WinterState>((set, get) => ({
 
     // Check if cloud has data or if initial sample data needed
     if (!profile.sampleDataLoaded && tasks.length === 0) {
-      // First attempt to pull from Supabase cloud
-      const pullResult = await pullFromSupabase();
+      await pullFromSupabase();
       tasks = await localDb.getTasks();
       goals = await localDb.getGoals();
       notes = await localDb.getNotes();
 
-      // If still empty, seed sample data
       if (tasks.length === 0) {
         const sample = getSampleData();
         tasks = sample.tasks;
@@ -152,6 +161,20 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       }
     }
 
+    // Ensure entertainment rewards (video games, movies, series) are present
+    const sampleRewards = getSampleData().rewards;
+    const existingRewardTitles = new Set(rewards.map(r => r.title.toLowerCase()));
+    let rewardsChanged = false;
+    for (const sr of sampleRewards) {
+      if (!existingRewardTitles.has(sr.title.toLowerCase())) {
+        rewards.push(sr);
+        rewardsChanged = true;
+      }
+    }
+    if (rewardsChanged) {
+      await localDb.saveRewards(rewards);
+    }
+
     const completions = await localDb.getCompletions();
     const goalLogs = await localDb.getGoalLogs();
     const journalEntries = await localDb.getJournal();
@@ -169,6 +192,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       notes,
       journalEntries,
       gymSessions,
+      gymPhotos,
       weightLogs,
       studySubjects,
       studySessions,
@@ -178,11 +202,34 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       focusTimer,
     });
 
-    // Background sync with Supabase
     get().triggerSync();
   },
 
   setActiveTab: (tab: ScreenTab) => set({ activeTab: tab }),
+
+  clearFullDayToast: () => set({ fullDayClearedToast: '' }),
+
+  acceptChallenge: async () => {
+    const profile = get().profile;
+    const today = new Date().toISOString().split('T')[0];
+    const updatedProfile: Profile = {
+      ...profile,
+      streak: 1, // Streak shifts from 0 to 1 on joining
+      bestStreak: Math.max(1, profile.bestStreak),
+      totalXp: profile.totalXp + 100, // Initiation bonus XP
+      spendableXp: profile.spendableXp + 100,
+      challengeAccepted: true,
+      startDate: today,
+    };
+
+    await localDb.saveProfile(updatedProfile);
+    set({
+      profile: updatedProfile,
+      fullDayClearedToast: '⚔️ WINTER ARC ACCEPTED! Streak is now 1. +100 XP & Initiation Badges Unlocked!',
+    });
+    playInitiationGong();
+    syncWithSupabase().catch(() => {});
+  },
 
   toggleTaskCompletion: async (taskId: string, date: string) => {
     const { completions, tasks, profile } = get();
@@ -212,9 +259,27 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       xpDelta = xpValue;
     }
 
-    const nextTotalXp = Math.max(0, profile.totalXp + xpDelta);
-    const nextSpendableXp = Math.max(0, profile.spendableXp + xpDelta);
-    const updatedProfile = { ...profile, totalXp: nextTotalXp, spendableXp: nextSpendableXp };
+    let nextTotalXp = Math.max(0, profile.totalXp + xpDelta);
+    let nextSpendableXp = Math.max(0, profile.spendableXp + xpDelta);
+    let updatedProfile = { ...profile, totalXp: nextTotalXp, spendableXp: nextSpendableXp };
+
+    // Check if ALL active tasks for today are now completed!
+    const todayTasks = tasks.filter(t => !t.archived);
+    const nextCompletedIds = new Set(nextCompletions.filter(c => c.date === date).map(c => c.taskId));
+    const allDone = todayTasks.length > 0 && todayTasks.every(t => nextCompletedIds.has(t.id));
+
+    if (allDone && existingIndex < 0) {
+      // Full Day Cleared Bonus! +100 Spendable XP to shop for video games/movies
+      updatedProfile = {
+        ...updatedProfile,
+        totalXp: updatedProfile.totalXp + 100,
+        spendableXp: updatedProfile.spendableXp + 100,
+      };
+      playCelebrationSound();
+      set({
+        fullDayClearedToast: '👑 FULL DAY CLEARED! +100 Spendable XP Earned! Ready to shop rewards for video games or movies!',
+      });
+    }
 
     await localDb.saveCompletions(nextCompletions);
     await localDb.saveProfile(updatedProfile);
@@ -259,15 +324,23 @@ export const useWinterStore = create<WinterState>((set, get) => ({
       nextLogs = [...goalLogs, { goalId, date, value: nextVal }];
     }
 
-    // Award XP if goal achieved today
+    // Award bonus XP if goal achieved today (e.g. reading a book!)
     let updatedProfile = profile;
     if (nextVal >= goal.target && currentVal < goal.target) {
+      const isReading = goal.title.toLowerCase().includes('read') || goal.title.toLowerCase().includes('book');
+      const bonusXp = isReading ? 100 : 50;
       updatedProfile = {
         ...profile,
-        totalXp: profile.totalXp + 25,
-        spendableXp: profile.spendableXp + 25,
+        totalXp: profile.totalXp + bonusXp,
+        spendableXp: profile.spendableXp + bonusXp,
       };
       await localDb.saveProfile(updatedProfile);
+      playCelebrationSound();
+      if (isReading) {
+        set({
+          fullDayClearedToast: '📚 Book Goal Completed! +100 Spendable XP Earned! Head to the Rewards Shop for guilt-free gaming & movie time!',
+        });
+      }
     }
 
     await localDb.saveGoalLogs(nextLogs);
@@ -453,6 +526,9 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     await localDb.saveFocusTimer(updatedTimer);
     await localDb.saveProfile(updatedProfile);
 
+    // Hard completion battle sound & vibration
+    playHardCompletionSound();
+
     set({
       focusTimer: updatedTimer,
       profile: updatedProfile,
@@ -483,6 +559,8 @@ export const useWinterStore = create<WinterState>((set, get) => ({
     await localDb.saveFocusSessions([newSession, ...existingSessions]);
     await localDb.saveProfile(updatedProfile);
 
+    playHardCompletionSound();
+
     set({ profile: updatedProfile });
     syncWithSupabase().catch(() => {});
   },
@@ -504,8 +582,27 @@ export const useWinterStore = create<WinterState>((set, get) => ({
 
     await localDb.saveGymSessions(nextSessions);
     await localDb.saveProfile(updatedProfile);
+    playCelebrationSound();
     set({ gymSessions: nextSessions, profile: updatedProfile });
     syncWithSupabase().catch(() => {});
+  },
+
+  addGymPhoto: async (photoInput) => {
+    const newPhoto: GymPhoto = {
+      ...photoInput,
+      id: `photo-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const nextPhotos = [newPhoto, ...get().gymPhotos];
+    await localDb.saveGymPhotos(nextPhotos);
+    set({ gymPhotos: nextPhotos });
+    syncWithSupabase().catch(() => {});
+  },
+
+  deleteGymPhoto: async (photoId: string) => {
+    const nextPhotos = get().gymPhotos.filter(p => p.id !== photoId);
+    await localDb.saveGymPhotos(nextPhotos);
+    set({ gymPhotos: nextPhotos });
   },
 
   logWeight: async (kg: number) => {
@@ -567,6 +664,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
 
     await localDb.saveProfile(nextProfile);
     await localDb.saveRedemptions(nextRedemptions);
+    playCelebrationSound();
     set({ profile: nextProfile, redemptions: nextRedemptions });
     syncWithSupabase().catch(() => {});
     return true;

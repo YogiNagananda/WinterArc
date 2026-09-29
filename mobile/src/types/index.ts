@@ -143,6 +143,17 @@ export interface Profile {
   soundEnabled: boolean;
   notificationsEnabled: boolean;
   sampleDataLoaded: boolean;
+  challengeAccepted: boolean;
+}
+
+export interface GymPhoto {
+  id: string;
+  date: string; // YYYY-MM-DD
+  arcDay: number;
+  uri: string; // local file or base64 URI
+  caption?: string;
+  weightKg?: number;
+  createdAt: string;
 }
 
 export interface DayRecord {
@@ -169,4 +180,5 @@ export interface FocusTimerState {
   taskId?: string;
   completedSessions: number[];
 }
+
 
