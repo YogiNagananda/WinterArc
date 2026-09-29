@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { useEffect } from 'react';
 
 interface Toast {
   id: string;
@@ -27,11 +26,11 @@ export const useToastStore = create<ToastState>((set) => ({
   },
 }));
 
-const typeColors: Record<Toast['type'], string> = {
-  success: 'var(--color-success)',
-  error: 'var(--color-danger)',
-  info: 'var(--color-info)',
-  warning: 'var(--color-warning)',
+const typeConfig: Record<Toast['type'], { color: string; emoji: string }> = {
+  success: { color: 'var(--color-success)', emoji: '✓' },
+  error:   { color: 'var(--color-danger)',  emoji: '✕' },
+  info:    { color: 'var(--color-info)',    emoji: 'ℹ' },
+  warning: { color: 'var(--color-warning)', emoji: '⚠' },
 };
 
 export function ToastContainer() {
@@ -42,17 +41,34 @@ export function ToastContainer() {
 
   return (
     <div className="toast-container" role="status" aria-live="polite">
-      {toasts.map(toast => (
-        <div
-          key={toast.id}
-          className="toast"
-          style={{ borderLeftWidth: '3px', borderLeftColor: typeColors[toast.type] }}
-          onClick={() => removeToast(toast.id)}
-          role="alert"
-        >
-          {toast.message}
-        </div>
-      ))}
+      {toasts.map(toast => {
+        const config = typeConfig[toast.type];
+        return (
+          <div
+            key={toast.id}
+            className="toast"
+            onClick={() => removeToast(toast.id)}
+            role="alert"
+          >
+            <span
+              className="toast-icon"
+              style={{ background: config.color }}
+              aria-hidden="true"
+            />
+            <span style={{ flex: 1 }}>{toast.message}</span>
+            <span
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--color-text-muted)',
+                marginLeft: 'auto',
+              }}
+              aria-hidden="true"
+            >
+              ✕
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

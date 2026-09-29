@@ -146,39 +146,36 @@ export function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-            <ProgressRing progress={completionPercent} size={100}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{completionPercent}%</span>
-              <span style={{ fontSize: '0.625rem', color: 'var(--color-text-muted)' }}>today</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <ProgressRing progress={completionPercent} size={96}>
+              <span style={{ fontSize: '1.375rem', fontWeight: 800 }}>{completionPercent}%</span>
+              <span style={{ fontSize: '0.625rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>today</span>
             </ProgressRing>
             <div style={{ flex: 1, minWidth: '180px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <Calendar size={16} style={{ color: 'var(--color-accent)' }} />
-                <span className="text-gradient" style={{ fontSize: '1.125rem', fontWeight: 700 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <Calendar size={15} style={{ color: 'var(--color-accent)' }} />
+                <span className="text-gradient" style={{ fontSize: '1.0625rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
                   Day {arcDay} of {profile.arcLength}
                 </span>
               </div>
-              <div style={{
-                height: '6px',
-                borderRadius: 'var(--radius-full)',
-                background: 'var(--color-border)',
-                marginBottom: '0.75rem',
-              }}>
+              <div className="progress-bar-track" style={{ marginBottom: '0.875rem' }}>
                 <motion.div
+                  className="progress-bar-fill"
                   initial={{ width: 0 }}
-                  animate={{ width: `${(arcDay / profile.arcLength) * 100}%` }}
-                  transition={{ duration: 0.8 }}
-                  style={{
-                    height: '100%',
-                    borderRadius: 'var(--radius-full)',
-                    background: 'var(--gradient-accent)',
-                  }}
+                  animate={{ width: `${Math.min((arcDay / profile.arcLength) * 100, 100)}%` }}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <Stat icon={<Flame size={14} />} label="Streak" value={profile.streak} color="var(--color-streak)" />
-                <Stat icon={<Trophy size={14} />} label="Best" value={profile.bestStreak} color="var(--color-warning)" />
-                <Stat icon={<Zap size={14} />} label="XP" value={profile.totalXp} color="var(--color-xp)" />
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <span className="stat-chip" style={{ color: 'var(--color-streak)' }}>
+                  <Flame size={13} />{profile.streak} streak
+                </span>
+                <span className="stat-chip" style={{ color: 'var(--color-warning)' }}>
+                  <Trophy size={13} />{profile.bestStreak} best
+                </span>
+                <span className="stat-chip" style={{ color: 'var(--color-xp)' }}>
+                  <Zap size={13} />{profile.totalXp} XP
+                </span>
               </div>
             </div>
           </div>
@@ -193,10 +190,10 @@ export function DashboardPage() {
         className="glass-card"
         style={{ padding: '1rem 1.25rem', marginBottom: '1rem' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.625rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Star size={18} style={{ color: 'var(--color-xp)' }} />
-            <span style={{ fontWeight: 700 }}>{level.name}</span>
+            <Star size={16} style={{ color: 'var(--color-xp)', filter: 'drop-shadow(0 0 4px rgba(167,139,250,0.5))' }} />
+            <span style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{level.name}</span>
           </div>
           {nextLevel && (
             <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
@@ -204,20 +201,13 @@ export function DashboardPage() {
             </span>
           )}
         </div>
-        <div style={{
-          height: '8px',
-          borderRadius: 'var(--radius-full)',
-          background: 'var(--color-border)',
-        }}>
+        <div className="progress-bar-track" style={{ height: '7px' }}>
           <motion.div
+            className="progress-bar-fill"
             initial={{ width: 0 }}
             animate={{ width: `${levelProgress}%` }}
-            transition={{ duration: 0.8 }}
-            style={{
-              height: '100%',
-              borderRadius: 'var(--radius-full)',
-              background: 'linear-gradient(90deg, var(--color-xp), var(--color-accent))',
-            }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+            style={{ background: 'linear-gradient(90deg, var(--color-xp), var(--color-accent))' }}
           />
         </div>
       </motion.div>
@@ -260,50 +250,62 @@ export function DashboardPage() {
         className="glass-card"
         style={{ padding: '1.25rem', marginBottom: '1rem' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '0.9375rem' }}>Today's Tasks</h3>
-          <Link to="/tasks" style={{ color: 'var(--color-accent)', fontSize: '0.75rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            View all <ChevronRight size={14} />
+        <div className="section-heading">
+          <h3 className="section-title">Today's Tasks</h3>
+          <Link to="/tasks" className="section-link">
+            View all <ChevronRight size={13} />
           </Link>
         </div>
         {todayTasks.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-            No tasks scheduled for today. Add some from the Tasks page!
-          </p>
+          <div className="empty-state" style={{ padding: '1.5rem 0' }}>
+            <div className="empty-state-icon" style={{ fontSize: '2rem' }}>📋</div>
+            <div className="empty-state-title" style={{ fontSize: '0.9375rem' }}>No tasks today</div>
+            <div className="empty-state-text">Add tasks from the Tasks page to get started!</div>
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {todayTasks.slice(0, 5).map(task => (
-              <div
-                key={task.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: todayCompletionIds.has(task.id)
-                    ? 'rgba(52, 211, 153, 0.1)'
-                    : 'var(--color-bg-glass)',
-                  opacity: todayCompletionIds.has(task.id) ? 0.7 : 1,
-                }}
-              >
-                <div className={`priority-dot priority-dot-${task.priority}`} />
-                <span style={{
-                  flex: 1,
-                  fontSize: '0.8125rem',
-                  textDecoration: todayCompletionIds.has(task.id) ? 'line-through' : 'none',
-                }}>
-                  {task.title}
-                </span>
-                {task.startTime && (
-                  <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-                    {formatTime(task.startTime)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            {todayTasks.slice(0, 5).map(task => {
+              const done = todayCompletionIds.has(task.id);
+              return (
+                <div
+                  key={task.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: 'var(--radius-sm)',
+                    background: done ? 'var(--color-success-subtle)' : 'var(--color-bg-hover)',
+                    border: '1px solid',
+                    borderColor: done ? 'rgba(0,217,127,0.2)' : 'transparent',
+                    transition: 'all 0.2s ease',
+                    opacity: done ? 0.65 : 1,
+                  }}
+                >
+                  <div className={`priority-dot priority-dot-${task.priority}`} />
+                  <span style={{
+                    flex: 1,
+                    fontSize: '0.8125rem',
+                    fontWeight: done ? 400 : 500,
+                    textDecoration: done ? 'line-through' : 'none',
+                    color: done ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {task.title}
                   </span>
-                )}
-              </div>
-            ))}
+                  {task.startTime && (
+                    <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', flexShrink: 0 }}>
+                      {formatTime(task.startTime)}
+                    </span>
+                  )}
+                  {done && <span style={{ fontSize: '0.75rem', color: 'var(--color-success)' }}>✓</span>}
+                </div>
+              );
+            })}
             {todayTasks.length > 5 && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'center', padding: '0.25rem 0' }}>
                 +{todayTasks.length - 5} more
               </p>
             )}
@@ -339,18 +341,20 @@ export function DashboardPage() {
         className="glass-card"
         style={{ padding: '1.25rem' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '0.9375rem' }}>Daily Goals</h3>
-          <Link to="/goals" style={{ color: 'var(--color-accent)', fontSize: '0.75rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            View all <ChevronRight size={14} />
+        <div className="section-heading">
+          <h3 className="section-title">Daily Goals</h3>
+          <Link to="/goals" className="section-link">
+            View all <ChevronRight size={13} />
           </Link>
         </div>
         {activeGoals.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-            No daily goals set. Create goals to track your daily habits!
-          </p>
+          <div className="empty-state" style={{ padding: '1.5rem 0' }}>
+            <div className="empty-state-icon" style={{ fontSize: '2rem' }}>🎯</div>
+            <div className="empty-state-title" style={{ fontSize: '0.9375rem' }}>No goals yet</div>
+            <div className="empty-state-text">Create daily goals to build lasting habits!</div>
+          </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.5rem' }}>
+          <div className="card-grid">
             {activeGoals.slice(0, 6).map(goal => {
               const value = todayGoalLogs.get(goal.id) ?? 0;
               const done = goal.type === 'checkbox' ? value >= 1 : value >= goal.target;
@@ -358,20 +362,22 @@ export function DashboardPage() {
                 <div
                   key={goal.id}
                   style={{
-                    padding: '0.625rem',
+                    padding: '0.875rem 0.75rem',
                     borderRadius: 'var(--radius-md)',
-                    background: done ? 'rgba(52, 211, 153, 0.1)' : 'var(--color-bg-glass)',
+                    background: done ? 'var(--color-success-subtle)' : 'var(--color-bg-hover)',
                     textAlign: 'center',
-                    border: done ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid transparent',
+                    border: '1px solid',
+                    borderColor: done ? 'rgba(0,217,127,0.25)' : 'var(--color-border)',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  <div style={{ fontSize: '1.25rem' }}>{goal.icon}</div>
-                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '1.5rem', lineHeight: 1, marginBottom: '0.375rem' }}>{goal.icon}</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {goal.title}
                   </div>
-                  <div style={{ fontSize: '0.625rem', color: done ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: done ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
                     {goal.type === 'checkbox'
-                      ? (done ? '✓ Done' : 'Not done')
+                      ? (done ? '✓ Done' : 'Pending')
                       : `${value}/${goal.target} ${goal.unit}`
                     }
                   </div>
@@ -385,15 +391,4 @@ export function DashboardPage() {
   );
 }
 
-// Small stat display
-function Stat({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-      <span style={{ color }}>{icon}</span>
-      <div>
-        <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>{value}</div>
-        <div style={{ fontSize: '0.5625rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{label}</div>
-      </div>
-    </div>
-  );
-}
+
