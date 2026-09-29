@@ -14,6 +14,7 @@ import { useWinterStore } from '../store/useWinterStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { getLevel, getNextLevel, getLevelProgress, getXpToNextLevel } from '../lib/levels';
+import { unlockAudio, playSuccessSound } from '../lib/soundPlayer';
 
 export const RewardsScreen: React.FC = () => {
   const { colors, spacing, borderRadius } = useTheme();
@@ -35,6 +36,7 @@ export const RewardsScreen: React.FC = () => {
   const xpNeeded = getXpToNextLevel(profile.totalXp);
 
   const handleRedeem = async (id: string, title: string, cost: number) => {
+    unlockAudio();
     if (profile.totalXp < cost) {
       Alert.alert(
         'Insufficient XP Points',
@@ -105,6 +107,19 @@ export const RewardsScreen: React.FC = () => {
           Crushed your reading goal or cleared 100% of today's non-negotiables? Spend your earned XP on video games, movie nights, or TV series bingeing with zero regret. You earned every second.
         </Text>
       </Card>
+
+      {/* Test Reward Claim Sound */}
+      <TouchableOpacity
+        style={styles.soundTestRow}
+        onPress={() => {
+          unlockAudio();
+          playSuccessSound();
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.soundTestIcon}>✨</Text>
+        <Text style={styles.soundTestText}>Test Claim Reward Sound</Text>
+      </TouchableOpacity>
 
       {/* Rewards Catalog */}
       <View style={styles.headerRow}>
@@ -405,5 +420,27 @@ const createStyles = (colors: any, spacing: any, borderRadius: any) =>
       flexDirection: 'row',
       gap: spacing.md,
       marginTop: spacing.md,
+    },
+    soundTestRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.full,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      marginBottom: spacing.md,
+      alignSelf: 'center',
+    },
+    soundTestIcon: {
+      fontSize: 14,
+      marginRight: 6,
+    },
+    soundTestText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
     },
   });

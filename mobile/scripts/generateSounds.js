@@ -86,18 +86,39 @@ const battleAlarm = createWavBuffer(sampleRate, 3.2, (t) => {
   return (sig * 0.65 + bowl) * 0.85;
 });
 
-// 2. CELEBRATION FANFARE (Full Day / Goal): Ascending major arpeggio
-const celebration = createWavBuffer(sampleRate, 1.8, (t) => {
-  // C5 (523Hz), E5 (659Hz), G5 (784Hz), C6 (1046Hz)
-  const notes = [523.25, 659.25, 783.99, 1046.5];
-  const noteDuration = 0.35;
-  const noteIndex = Math.min(notes.length - 1, Math.floor(t / noteDuration));
-  const noteT = (t - noteIndex * noteDuration);
-  const freq = notes[noteIndex];
+// 2. REWARD CLAIM & TASK SUCCESS DING: Crystal 2-tone "Successfully Completed" chime with sparkling resolve
+const successDing = createWavBuffer(sampleRate, 1.2, (t) => {
+  let sig = 0;
 
-  const osc = Math.sin(2 * Math.PI * freq * t) + 0.3 * Math.sin(4 * Math.PI * freq * t);
-  const env = Math.exp(-2.5 * noteT);
-  return osc * env * 0.6;
+  // Tone 1: E5 (659.25Hz) + G5 (783.99Hz) at t = 0.0s
+  if (t >= 0 && t < 0.7) {
+    const dt = t;
+    const env = Math.exp(-6.0 * dt);
+    const o1 = Math.sin(2 * Math.PI * 659.25 * dt) * 0.40;
+    const o2 = Math.sin(2 * Math.PI * 783.99 * dt) * 0.25;
+    const o3 = Math.sin(2 * Math.PI * 1318.51 * dt) * 0.15; // harmonic ping
+    sig += (o1 + o2 + o3) * env;
+  }
+
+  // Tone 2: C6 (1046.50Hz) + E6 (1318.51Hz) triumphant resolve at t = 0.12s
+  if (t >= 0.12) {
+    const dt = t - 0.12;
+    const env = Math.exp(-3.2 * dt);
+    const o1 = Math.sin(2 * Math.PI * 1046.50 * dt) * 0.45;
+    const o2 = Math.sin(2 * Math.PI * 1318.51 * dt) * 0.30;
+    const o3 = Math.sin(2 * Math.PI * 2093.00 * dt) * 0.18; // sparkling octave
+    const o4 = Math.sin(2 * Math.PI * 2637.02 * dt) * 0.10; // crystal sheen
+    sig += (o1 + o2 + o3 + o4) * env;
+  }
+
+  // Warm acoustic body at t = 0.12s
+  if (t >= 0.12) {
+    const dt = t - 0.12;
+    const warm = Math.sin(2 * Math.PI * 523.25 * dt) * 0.18 * Math.exp(-4.0 * dt);
+    sig += warm;
+  }
+
+  return sig * 0.85;
 });
 
 // 3. INITIATION GONG (Challenge Accepted): Deep resonant gong with metallic shimmer
@@ -110,7 +131,8 @@ const gong = createWavBuffer(sampleRate, 2.5, (t) => {
 });
 
 fs.writeFileSync(path.join(assetsDir, 'battle_alarm.wav'), battleAlarm);
-fs.writeFileSync(path.join(assetsDir, 'celebration.wav'), celebration);
+fs.writeFileSync(path.join(assetsDir, 'celebration.wav'), successDing);
+fs.writeFileSync(path.join(assetsDir, 'success_ding.wav'), successDing);
 fs.writeFileSync(path.join(assetsDir, 'initiation_gong.wav'), gong);
 
-console.log('Successfully generated audio assets in mobile/assets/: battle_alarm.wav, celebration.wav, initiation_gong.wav');
+console.log('Successfully generated audio assets in mobile/assets/: battle_alarm.wav, celebration.wav, success_ding.wav, initiation_gong.wav');

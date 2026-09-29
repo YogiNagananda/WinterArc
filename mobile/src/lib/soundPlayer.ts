@@ -153,40 +153,66 @@ export async function playHardCompletionSound() {
 export const playFocusCompletionSound = playHardCompletionSound;
 
 /**
- * Play celebratory sound for Day 100% completion or reading achievement
+ * Play a sparkling, uplifting 2-tone "Successfully Completed" crystal chime
+ * when claiming rewards, clearing daily tasks, or hitting milestones.
  */
-export async function playCelebrationSound() {
+export async function playSuccessSound() {
   try {
-    Vibration.vibrate([0, 200, 100, 300]);
+    // 1. Crisp, cheerful double tap haptic
+    Vibration.vibrate([0, 80, 50, 120]);
 
+    // 2. Play success ding WAV via expo-audio player
     const player = getCelebrationPlayer();
     if (player) {
       try {
+        player.volume = 1.0;
         await player.seekTo(0);
         player.play();
-      } catch {}
+      } catch (e) {
+        console.warn('Player play error:', e);
+      }
     }
 
+    // 3. Web Audio Synthesizer backup (crisp, musical 2-tone success ding)
     const ctx = getWebAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-      const freqs = [523.25, 659.25, 783.99, 1046.5];
-      freqs.forEach((freq, idx) => {
-        const start = now + idx * 0.12;
+
+      // Tone 1: E5 (659.25Hz) + G5 (783.99Hz) at t = 0.0s
+      [659.25, 783.99].forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'triangle';
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.35 / (idx + 1), now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      });
+
+      // Tone 2: C6 (1046.50Hz) + E6 (1318.51Hz) triumphant resolve at t = 0.12s
+      [1046.50, 1318.51, 2093.00].forEach((freq, idx) => {
+        const start = now + 0.12;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, start);
-        gain.gain.setValueAtTime(0.3, start);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+        gain.gain.setValueAtTime(0.4 / (idx + 1), start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.7);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(start);
-        osc.stop(start + 0.35);
+        osc.stop(start + 0.7);
       });
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Success sound playback notice:', err);
+  }
 }
+
+export const playCelebrationSound = playSuccessSound;
 
 /**
  * Play epic initiation gong when accepting the Winter Arc Challenge

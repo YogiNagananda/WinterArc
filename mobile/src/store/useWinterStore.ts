@@ -21,7 +21,7 @@ import {
 import { localDb, defaultProfile, defaultFocusTimer } from '../lib/storage';
 import { getSampleData } from '../lib/sampleData';
 import { syncWithSupabase, deleteFromSupabase, pullFromSupabase } from '../lib/syncEngine';
-import { playHardCompletionSound, playCelebrationSound, playInitiationGong } from '../lib/soundPlayer';
+import { playHardCompletionSound, playCelebrationSound, playSuccessSound, playInitiationGong } from '../lib/soundPlayer';
 
 export type ScreenTab =
   | 'dashboard'
@@ -745,7 +745,7 @@ export const useWinterStore = create<WinterState>((set, get) => ({
 
     await localDb.saveProfile(nextProfile);
     await localDb.saveRedemptions(nextRedemptions);
-    playCelebrationSound();
+    playSuccessSound();
     set({ profile: nextProfile, redemptions: nextRedemptions });
     syncWithSupabase().catch(() => {});
     return true;
