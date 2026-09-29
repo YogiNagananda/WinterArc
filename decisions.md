@@ -82,3 +82,31 @@ Every time a meaningful change is made to the codebase, an entry is added detail
 - **Why position bottom on mobile / top on desktop:** On mobile, the top of the screen is often behind the browser chrome (status bar), and the bottom right is the natural attention zone near the thumb. On desktop with a wide viewport, top-right is the conventional notification position (Mac menu bar, Windows taskbar tray, browser extensions).
 
 ---
+
+## [2026-09-29] React Native Mobile App — WinterArc Mobile
+
+### 8. Mobile Platform Choice: Expo (Blank TypeScript Template)
+- **What changed:** Bootstrapped a new React Native app at `mobile/` inside the WinterArc workspace using `create-expo-app@latest` with the `blank-typescript` template.
+- **Why Expo over bare React Native CLI:** Expo Go allows instant testing on physical Android/iOS devices without building APKs. No Xcode or Android Studio required for initial development. Expo SDK manages native modules, OTA updates, font loading, and splash screens.
+- **Why not Expo Router:** The app is a single-user discipline tracker with flat navigation. File-based routing adds complexity with no benefit here. A simple Zustand `activeTab` state replacing the router is ~90% less code.
+
+### 9. State Management: Custom Tab Router via Zustand (no React Navigation)
+- **What changed:** Navigation is handled by a `ScreenTab` string in Zustand store (`activeTab`). `App.tsx` renders the correct screen component based on `activeTab`. `BottomTabs` component updates it.
+- **Why this over React Navigation / Expo Router:** React Navigation requires 5+ packages (`@react-navigation/native`, `@react-navigation/bottom-tabs`, gesture handler, safe area, etc.) and adds significant boilerplate for a single-stack, non-nested navigation pattern. Our 10 screens are flat — no modals-within-screens, no nested stacks.
+- **Tradeoff:** Loses native swipe-between-tabs and deep linking, which are not needed for a personal tracker.
+
+### 10. Offline-First Architecture with AsyncStorage + Supabase Cloud Sync
+- **What changed:** All data is first read/written to `AsyncStorage` (via `src/lib/storage.ts`). After every mutation, `syncWithSupabase()` is called in the background (non-blocking, errors swallowed silently). The Settings screen exposes manual "Sync Now" + "Test Connection".
+- **Why this approach:** The app must work 100% offline (airplane mode, poor connectivity). Supabase is a bonus cloud backup layer, not a hard dependency. Users still get full functionality without internet.
+- **Why AsyncStorage over SQLite/MMKV:** AsyncStorage is the standard Expo/RN storage API with zero native configuration. MMKV is faster but requires native linking. SQLite is overkill for a structured JSON data model that Zustand already manages. AsyncStorage + JSON serialization works perfectly at this data scale.
+
+### 11. Supabase Key: publishable anon key with liberal RLS
+- **What changed:** The Supabase anon key (`sb_publishable_...`) is embedded in `src/lib/supabase.ts`. RLS policy in `supabase/schema.sql` allows all anon + authenticated reads/writes.
+- **Why this approach:** WinterArc is a single-user personal app. There is no multi-tenancy requirement — the user's data belongs only to them. Supabase provides a simple REST API with the anon key that eliminates the need for a backend server.
+- **Why not service_role key:** Never embed the service_role key in a mobile app. The publishable anon key is safe to ship.
+
+### 12. Component Architecture: Minimal Shared Components
+- **What changed:** Built 5 shared components: `Card`, `Button`, `StatChip`, `Header`, `BottomTabs`. All screens consume these and build their own layout inline.
+- **Why this over a UI library:** Libraries like React Native Paper, NativeBase, or Tamagui impose their own design language. WinterArc has a specific icy navy design system (defined in `src/theme/colors.ts`) that doesn't exist in any pre-built library. Building our own gives us full design control with ~200 lines of component code.
+
+---

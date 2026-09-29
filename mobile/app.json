@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "WinterArc",
+    "slug": "WinterArcApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f1729",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.winterarc.app"
+    },
+    "android": {
+      "package": "com.winterarc.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1729",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
+  }
+}
